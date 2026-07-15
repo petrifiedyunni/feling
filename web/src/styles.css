@@ -2015,305 +2015,217 @@ img {
 
 .walkin {
   position: relative;
-  width: min(1120px, calc(100% - 1rem));
+  width: min(1080px, calc(100% - 1rem));
   margin: 0 auto;
-  padding: 0.5rem 0 3.5rem;
+  padding: 0.35rem 0 3rem;
   isolation: isolate;
 }
 
-.walkin__room {
+.walkin__bg {
   position: fixed;
   inset: 0;
   z-index: -1;
   background:
-    linear-gradient(180deg, rgba(255, 248, 250, 0.72) 0%, rgba(252, 236, 241, 0.88) 55%, rgba(246, 220, 228, 0.92) 100%),
+    linear-gradient(180deg, rgba(255, 248, 250, 0.78), rgba(252, 230, 236, 0.9)),
     url("/playground-closet-bg.png") center / cover no-repeat;
   pointer-events: none;
 }
 
-.walkin__frame {
-  position: relative;
-}
-
-.walkin__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+.walkin__inner {
+  display: grid;
   gap: 1rem;
-  margin-bottom: 0.75rem;
-  padding: 0 0.15rem;
 }
 
-.walkin__head p {
-  margin: 0;
-  font-size: 0.62rem;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: #b07a84;
-}
-
-.walkin__head h1 {
-  margin: 0;
-  font-family: var(--display);
-  font-style: italic;
-  font-weight: 500;
-  font-size: 1.65rem;
-  color: #7a3d4a;
-}
-
-.walkin__scene {
+.walkin__center {
   display: grid;
-  grid-template-rows: auto minmax(340px, 52vh) auto;
-  gap: 0.85rem;
-}
-
-.walkin__shelves--bottom {
-  display: grid;
-  gap: 0.75rem;
-}
-
-/* Horizontal shelf with hanging garments */
-.shelf {
-  position: relative;
-  padding: 0.35rem 0 0.15rem;
-}
-
-.shelf__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.2rem;
-  padding: 0 0.2rem;
-}
-
-.shelf__head h2 {
-  margin: 0;
-  font-family: var(--display);
-  font-style: italic;
-  font-weight: 500;
-  font-size: 1.15rem;
-  color: #7a3d4a;
-}
-
-.shelf__nudge {
-  display: flex;
-  gap: 0.25rem;
-}
-
-.shelf__nudge button {
-  width: 1.85rem;
-  height: 1.85rem;
-  border-radius: 50%;
-  border: 1px solid rgba(200, 120, 140, 0.35);
-  background: rgba(255, 255, 255, 0.85);
-  color: #8a3d52;
-  font-size: 1.1rem;
-  line-height: 1;
-}
-
-.shelf__ledge {
-  height: 7px;
-  margin: 0 0.1rem 0.15rem;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #e2c4cc, #c99aa6 55%, #b87f8f);
-  box-shadow: 0 5px 10px rgba(120, 50, 70, 0.12);
-}
-
-.shelf__track {
-  display: flex;
-  gap: 0.85rem;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  padding: 0.35rem 0.25rem 0.65rem;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-}
-
-.shelf__track::-webkit-scrollbar {
-  height: 4px;
-}
-
-.shelf__track::-webkit-scrollbar-thumb {
-  background: rgba(180, 100, 120, 0.35);
-  border-radius: 999px;
-}
-
-.shelf__item {
-  flex: 0 0 auto;
-  width: 92px;
-  scroll-snap-align: start;
-  display: grid;
-  gap: 0.2rem;
-  padding: 0;
-  text-align: center;
-  transition: transform 160ms ease;
-}
-
-.shelf__item:hover {
-  transform: translateY(-4px);
-}
-
-.shelf__hook {
-  display: block;
-  width: 12px;
-  height: 14px;
-  margin: 0 auto -2px;
-  border: 2px solid #b88894;
-  border-bottom: 0;
-  border-radius: 9px 9px 0 0;
-}
-
-.shelf__garment {
-  display: grid;
-  place-items: end center;
-  height: 118px;
-  padding: 0.35rem 0.25rem 0.2rem;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 40%),
-    linear-gradient(180deg, #fff8fa, #ffe3ec);
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  box-shadow: 0 8px 16px rgba(140, 50, 80, 0.08);
-}
-
-.shelf__garment img {
-  max-width: 88%;
-  max-height: 100%;
-  object-fit: contain;
-  filter: drop-shadow(0 6px 10px rgba(90, 30, 50, 0.12));
-}
-
-.shelf__caption em {
-  font-style: normal;
-  font-size: 0.55rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #b07a84;
-}
-
-.shelf__empty {
-  margin: 0.75rem 0.35rem;
-  color: #b07a84;
-  font-size: 0.85rem;
-}
-
-/* Her in the middle */
-.walkin__mirror {
-  display: grid;
-  grid-template-rows: 1fr auto;
   gap: 0.55rem;
-  min-height: 0;
-}
-
-.walkin__mirror-frame {
-  position: relative;
-  height: 100%;
-  min-height: 320px;
-  border-radius: 999px / 8%;
-  padding: 0.55rem;
-  background:
-    linear-gradient(160deg, #f3d6de, #e8b8c6 45%, #df9fau 100%);
-  background: linear-gradient(160deg, #f3d6de, #e8b8c6 45%, #df9fb0 100%);
-  box-shadow:
-    0 24px 48px rgba(160, 60, 95, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
 .walkin__stage {
   position: relative;
-  height: 100%;
-  min-height: 300px;
-  border-radius: 999px / 7%;
+  height: min(58vh, 620px);
+  min-height: 420px;
+  border-radius: 28px;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, 0.75), transparent 55%),
-    linear-gradient(180deg, #fff5f8 0%, #ffe6ee 55%, #f8d5e0 100%);
+    radial-gradient(ellipse at 50% 18%, rgba(255, 255, 255, 0.85), transparent 50%),
+    linear-gradient(180deg, #fff4f7 0%, #ffe3ec 48%, #f5c9d5 100%);
+  box-shadow:
+    0 22px 48px rgba(170, 60, 100, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.65);
   touch-action: none;
   user-select: none;
-}
-
-.walkin__glow {
-  position: absolute;
-  inset: 8% 18% auto;
-  height: 35%;
-  background: radial-gradient(ellipse, rgba(255, 255, 255, 0.8), transparent 70%);
-  pointer-events: none;
 }
 
 .walkin__doll {
   position: absolute;
   left: 50%;
-  bottom: 2%;
+  bottom: 1.5%;
   transform: translateX(-50%);
-  height: 94%;
+  height: 92%;
   width: auto;
-  max-width: 46%;
+  max-width: min(280px, 48%);
   object-fit: contain;
   pointer-events: none;
-  z-index: 2;
-  filter: drop-shadow(0 18px 24px rgba(120, 40, 70, 0.18));
+  z-index: 1;
+  filter: drop-shadow(0 16px 22px rgba(120, 40, 70, 0.2));
 }
 
-.walkin__actions {
+.walkin__tools {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-  align-items: center;
   justify-content: center;
+  align-items: center;
 }
 
-.walkin__actions > button,
-.walkin__actions > a {
-  height: 2.05rem;
+.walkin__tools > button,
+.walkin__tools > a {
+  height: 2rem;
   padding: 0 0.85rem;
   border-radius: 999px;
   border: 1px solid rgba(200, 120, 140, 0.35);
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.9);
   color: #8a3d52;
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   display: inline-grid;
   place-items: center;
 }
 
-.walkin__actions > button:disabled {
+.walkin__tools > button:disabled {
   opacity: 0.35;
   cursor: default;
 }
 
-.walkin__actions > a {
-  border-color: transparent;
+.walkin__tools > a {
+  border: 0;
   background: transparent;
-  border-bottom: 1px solid rgba(138, 61, 82, 0.35);
-  border-radius: 0;
-  height: auto;
-  padding: 0.2rem 0;
   text-transform: none;
   letter-spacing: 0.02em;
   font-size: 0.82rem;
+  border-bottom: 1px solid rgba(138, 61, 82, 0.35);
+  border-radius: 0;
+  height: auto;
+  padding: 0.15rem 0;
 }
 
-/* Piece + selection chrome (shared) */
-.closet-piece {
+/* Hanging rail shelves */
+.rail__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.2rem;
+  margin-bottom: 0.15rem;
+}
+
+.rail__bar h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 1.2rem;
+  color: #7a3d4a;
+}
+
+.rail__btns {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.rail__btns button {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  border: 1px solid rgba(200, 120, 140, 0.35);
+  background: rgba(255, 255, 255, 0.9);
+  color: #8a3d52;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.rail__pole {
+  height: 6px;
+  margin: 0 0.15rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #e5c5cd, #c48e9c);
+  box-shadow: 0 4px 10px rgba(120, 50, 70, 0.14);
+}
+
+.rail__scroll {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  padding: 0.45rem 0.1rem 0.7rem;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.rail__piece {
+  flex: 0 0 auto;
+  width: 86px;
+  height: 130px;
+  scroll-snap-align: start;
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  transition: transform 150ms ease;
+}
+
+.rail__piece:hover {
+  transform: translateY(-5px);
+}
+
+.rail__hanger {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 16px;
+  height: 12px;
+  margin-left: -8px;
+  border: 2px solid #b88894;
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  z-index: 1;
+}
+
+.rail__piece img {
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  max-width: 78px;
+  max-height: 112px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 12px rgba(90, 30, 50, 0.18));
+  pointer-events: none;
+}
+
+/* Fitted pieces on doll */
+.fit {
   position: absolute;
   width: 0;
   height: 0;
   touch-action: none;
 }
 
-.closet-piece__body {
+.fit__body {
   position: absolute;
   left: 0;
   top: 0;
   transform-origin: center center;
 }
 
-.closet-piece__hit {
+.fit__hit {
   display: block;
   width: 100%;
   padding: 0;
-  margin: 0;
   border: 0;
   background: transparent;
   cursor: grab;
@@ -2321,11 +2233,7 @@ img {
   filter: drop-shadow(0 8px 14px rgba(90, 30, 50, 0.16));
 }
 
-.closet-piece__hit:active {
-  cursor: grabbing;
-}
-
-.closet-piece__hit img {
+.fit__hit img {
   display: block;
   width: 100%;
   height: auto;
@@ -2333,19 +2241,19 @@ img {
   object-fit: contain;
 }
 
-.closet-sel {
+.fit__sel {
   position: absolute;
   inset: -10px;
-  border: 1.5px solid rgba(255, 255, 255, 0.95);
+  border: 1.5px solid #fff;
   box-shadow: 0 0 0 1px rgba(255, 70, 130, 0.45);
   pointer-events: none;
 }
 
-.closet-sel > * {
+.fit__sel > * {
   pointer-events: auto;
 }
 
-.closet-sel__x {
+.fit__x {
   position: absolute;
   top: -12px;
   right: -12px;
@@ -2359,12 +2267,10 @@ img {
   line-height: 1;
   display: grid;
   place-items: center;
-  cursor: pointer;
-  box-shadow: 0 3px 10px rgba(120, 20, 60, 0.3);
   z-index: 3;
 }
 
-.closet-sel__rot {
+.fit__rot {
   position: absolute;
   left: 50%;
   top: -34px;
@@ -2379,18 +2285,18 @@ img {
   z-index: 3;
 }
 
-.closet-sel__rot::before {
+.fit__rot::before {
   content: "";
   position: absolute;
   left: 50%;
   top: 100%;
   width: 1.5px;
   height: 18px;
-  background: rgba(255, 255, 255, 0.95);
+  background: #fff;
   transform: translateX(-50%);
 }
 
-.closet-sel__h {
+.fit__h {
   position: absolute;
   width: 10px;
   height: 10px;
@@ -2401,8 +2307,8 @@ img {
   z-index: 2;
 }
 
-.closet-sel__h--n,
-.closet-sel__h--s {
+.fit__h--n,
+.fit__h--s {
   left: 50%;
   margin-left: -5px;
   width: 18px;
@@ -2410,8 +2316,8 @@ img {
   cursor: ns-resize;
 }
 
-.closet-sel__h--e,
-.closet-sel__h--w {
+.fit__h--e,
+.fit__h--w {
   top: 50%;
   margin-top: -5px;
   width: 8px;
@@ -2419,31 +2325,33 @@ img {
   cursor: ew-resize;
 }
 
-.closet-sel__h--n { top: -5px; }
-.closet-sel__h--s { bottom: -5px; }
-.closet-sel__h--e { right: -5px; }
-.closet-sel__h--w { left: -5px; }
-
-.closet-sel__h--ne { top: -5px; right: -5px; cursor: nesw-resize; }
-.closet-sel__h--nw { top: -5px; left: -5px; cursor: nwse-resize; }
-.closet-sel__h--se { bottom: -5px; right: -5px; cursor: nwse-resize; }
-.closet-sel__h--sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+.fit__h--n { top: -5px; }
+.fit__h--s { bottom: -5px; }
+.fit__h--e { right: -5px; }
+.fit__h--w { left: -5px; }
+.fit__h--ne { top: -5px; right: -5px; cursor: nesw-resize; }
+.fit__h--nw { top: -5px; left: -5px; cursor: nwse-resize; }
+.fit__h--se { bottom: -5px; right: -5px; cursor: nwse-resize; }
+.fit__h--sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
 
 @media (max-width: 720px) {
-  .walkin__scene {
-    grid-template-rows: auto minmax(280px, 48vh) auto;
-  }
-
-  .shelf__item {
-    width: 78px;
-  }
-
-  .shelf__garment {
-    height: 100px;
+  .walkin__stage {
+    height: min(52vh, 520px);
+    min-height: 360px;
   }
 
   .walkin__doll {
     max-width: 58%;
+  }
+
+  .rail__piece {
+    width: 74px;
+    height: 118px;
+  }
+
+  .rail__piece img {
+    max-width: 68px;
+    max-height: 98px;
   }
 }
 
