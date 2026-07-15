@@ -228,61 +228,75 @@ export function PlaygroundPage() {
   return (
     <section className="playground">
       <header className="playground__head">
-        <p className="playground__kicker">Playground</p>
-        <h1>Dress the doll</h1>
+        <p className="playground__kicker">Vanity · Playground</p>
+        <h1>Dress-up box</h1>
         <p className="playground__lede">
-          Drag pieces from the archive onto her. Move freely, scroll to scale,
-          tweak until it sits right.
+          Open the window, drag archive pieces onto her, fuss until she’s perfect.
         </p>
       </header>
 
       <div className="playground__layout">
         <div className="playground__stage-wrap">
-          <div
-            ref={stageRef}
-            className="playground__stage"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={onStageDrop}
-            onPointerMove={onStagePointerMove}
-            onPointerUp={onStagePointerUp}
-            onPointerCancel={onStagePointerUp}
-            onClick={() => setActiveUid(null)}
-          >
-            <img
-              className="playground__doll"
-              src={DOLL}
-              alt="Custom feling doll"
-              draggable={false}
-            />
+          <div className="playground__box" aria-hidden={false}>
+            <div className="playground__box-flap playground__box-flap--l" aria-hidden />
+            <div className="playground__box-flap playground__box-flap--r" aria-hidden />
+            <div className="playground__box-top" aria-hidden>
+              <span>feling.</span>
+              <em>collector’s window</em>
+            </div>
+            <div
+              ref={stageRef}
+              className="playground__stage"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={onStageDrop}
+              onPointerMove={onStagePointerMove}
+              onPointerUp={onStagePointerUp}
+              onPointerCancel={onStagePointerUp}
+              onClick={() => setActiveUid(null)}
+            >
+              <div className="playground__vanity" aria-hidden />
+              <div className="playground__glass" aria-hidden />
+              <div className="playground__sparkles" aria-hidden>
+                <i /><i /><i /><i /><i /><i />
+              </div>
 
-            {placed.map((piece) => {
-              const product = byId.get(piece.productId);
-              if (!product) return null;
-              const selected = piece.uid === activeUid;
-              return (
-                <button
-                  key={piece.uid}
-                  type="button"
-                  className={`playground__piece${selected ? " is-active" : ""}`}
-                  style={{
-                    left: `${piece.x}%`,
-                    top: `${piece.y}%`,
-                    zIndex: piece.z,
-                    transform: `translate(-50%, -50%) rotate(${piece.rot}deg) scale(${piece.scale})`,
-                  }}
-                  onPointerDown={(e) => onStagePointerDown(e, piece.uid)}
-                  onWheel={(e) => onPieceWheel(e, piece.uid)}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    setPlaced((prev) => prev.filter((p) => p.uid !== piece.uid));
-                    if (activeUid === piece.uid) setActiveUid(null);
-                  }}
-                  aria-label={`${product.title} on doll`}
-                >
-                  <img src={productImage(product)} alt="" draggable={false} />
-                </button>
-              );
-            })}
+              <img
+                className="playground__doll"
+                src={DOLL}
+                alt="Custom feling doll"
+                draggable={false}
+              />
+
+              {placed.map((piece) => {
+                const product = byId.get(piece.productId);
+                if (!product) return null;
+                const selected = piece.uid === activeUid;
+                return (
+                  <button
+                    key={piece.uid}
+                    type="button"
+                    className={`playground__piece${selected ? " is-active" : ""}`}
+                    style={{
+                      left: `${piece.x}%`,
+                      top: `${piece.y}%`,
+                      zIndex: piece.z,
+                      transform: `translate(-50%, -50%) rotate(${piece.rot}deg) scale(${piece.scale})`,
+                    }}
+                    onPointerDown={(e) => onStagePointerDown(e, piece.uid)}
+                    onWheel={(e) => onPieceWheel(e, piece.uid)}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      setPlaced((prev) => prev.filter((p) => p.uid !== piece.uid));
+                      if (activeUid === piece.uid) setActiveUid(null);
+                    }}
+                    aria-label={`${product.title} on doll`}
+                  >
+                    <img src={productImage(product)} alt="" draggable={false} />
+                  </button>
+                );
+              })}
+            </div>
+            <p className="playground__box-foot">fit · fluff · obsess</p>
           </div>
 
           <div className="playground__tools">
