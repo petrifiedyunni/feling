@@ -68,9 +68,9 @@ function slotFor(p: Product): Slot {
 function defaultPose(slot: Slot): Pick<Placed, "x" | "y" | "scale" | "rot" | "z"> {
   switch (slot) {
     case "dress":
-      return { x: 50, y: 58, scale: 0.72, rot: 0, z: 20 };
+      return { x: 50, y: 62, scale: 0.68, rot: 0, z: 20 };
     case "top":
-      return { x: 50, y: 46, scale: 0.58, rot: 0, z: 25 };
+      return { x: 50, y: 52, scale: 0.55, rot: 0, z: 25 };
     case "bottom":
       return { x: 50, y: 68, scale: 0.58, rot: 0, z: 18 };
     case "shoes":
@@ -348,7 +348,7 @@ export function PlaygroundPage() {
               className="walkin__doll walkin__doll--body"
               role="img"
               aria-label="You"
-              style={{ backgroundImage: `url(${DOLL}?v=5)` }}
+              style={{ backgroundImage: `url(${DOLL}?v=6)` }}
             />
 
             {placed.map((piece) => {
@@ -420,7 +420,7 @@ export function PlaygroundPage() {
             <div
               className="walkin__doll walkin__doll--head"
               aria-hidden
-              style={{ backgroundImage: `url(${DOLL_HEAD}?v=5)` }}
+              style={{ backgroundImage: `url(${DOLL_HEAD}?v=6)` }}
             />
           </div>
 

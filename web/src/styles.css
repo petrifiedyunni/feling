@@ -2026,7 +2026,7 @@ img {
   inset: 0;
   z-index: -1;
   background:
-    linear-gradient(180deg, rgba(255, 248, 250, 0.72), rgba(252, 230, 236, 0.88)),
+    linear-gradient(180deg, rgba(255, 248, 250, 0.28), rgba(252, 230, 236, 0.35)),
     url("/playground-closet-bg.png") center / cover no-repeat;
   pointer-events: none;
 }
@@ -2051,13 +2051,14 @@ img {
   min-height: min(70vh, 680px);
   height: 100%;
   border-radius: 24px;
-  overflow: hidden;
+  overflow: visible;
   background:
-    radial-gradient(ellipse at 50% 12%, rgba(255, 255, 255, 0.9), transparent 48%),
-    linear-gradient(180deg, #fff5f8 0%, #ffe4ed 50%, #f4c6d4 100%);
+    radial-gradient(ellipse at 50% 18%, rgba(255, 255, 255, 0.28), transparent 52%),
+    linear-gradient(180deg, rgba(255, 245, 248, 0.2) 0%, rgba(255, 228, 237, 0.12) 55%, rgba(244, 198, 212, 0.18) 100%);
+  backdrop-filter: blur(1.5px);
   box-shadow:
-    0 22px 44px rgba(170, 60, 100, 0.16),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+    0 22px 44px rgba(170, 60, 100, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45);
   touch-action: none;
   user-select: none;
 }
@@ -2068,14 +2069,14 @@ img {
   left: 50%;
   bottom: 2%;
   transform: translateX(-50%);
-  width: clamp(150px, 34%, 280px);
-  height: 90%;
+  width: clamp(160px, 38%, 300px);
+  height: 92%;
   max-width: none;
   background-repeat: no-repeat;
   background-position: center bottom;
   background-size: contain;
   pointer-events: none;
-  filter: drop-shadow(0 16px 22px rgba(120, 40, 70, 0.22));
+  filter: drop-shadow(0 18px 26px rgba(80, 30, 50, 0.28));
 }
 
 .walkin__doll--body {
@@ -2084,7 +2085,8 @@ img {
 
 .walkin__doll--head {
   z-index: 999;
-  filter: drop-shadow(0 6px 10px rgba(120, 40, 70, 0.12));
+  /* softer so neckline of clothes can peek under chin */
+  filter: drop-shadow(0 4px 8px rgba(120, 40, 70, 0.1));
 }
 
 .walkin__tools {
@@ -2169,9 +2171,10 @@ img {
   padding: 0.65rem 0.55rem;
   border-radius: 16px;
   background:
-    linear-gradient(180deg, rgba(255, 252, 253, 0.96), rgba(255, 234, 240, 0.92));
-  border: 1px solid rgba(232, 150, 175, 0.45);
-  box-shadow: 0 14px 28px rgba(170, 60, 100, 0.1);
+    linear-gradient(180deg, rgba(255, 252, 253, 0.72), rgba(255, 234, 240, 0.58));
+  border: 1px solid rgba(232, 150, 175, 0.4);
+  box-shadow: 0 14px 28px rgba(170, 60, 100, 0.08);
+  backdrop-filter: blur(10px);
 }
 
 .shop__title {
@@ -2248,7 +2251,7 @@ img {
   background: transparent;
   cursor: grab;
   touch-action: none;
-  filter: drop-shadow(0 8px 14px rgba(90, 30, 50, 0.16));
+  filter: drop-shadow(0 10px 16px rgba(90, 30, 50, 0.2));
 }
 
 .fit__hit img {
@@ -2258,6 +2261,8 @@ img {
   max-width: none;
   pointer-events: none;
   object-fit: contain;
+  /* tuck garment into the scene a bit instead of pure sticker */
+  mix-blend-mode: multiply;
 }
 
 .fit__sel {
