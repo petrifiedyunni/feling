@@ -1,5 +1,5 @@
-import cutouts from "../data/cutouts.json";
-import type { Product } from "../types";
+import cutouts from "./data/cutouts.json";
+import type { Product } from "./types";
 
 const CUTOUTS = cutouts as Record<string, string>;
 
