@@ -1,9 +1,9 @@
 """
 feling. Sourcing Agent
 ======================
-Monitors Grailed, Vestiaire Collective, and Buyee for matching vintage pieces.
-Sends findings to Telegram for approval. On approval, opens checkout or provides
-direct purchase link.
+Monitors Grailed (US / Asia / Europe), Vestiaire, Yahoo Japan, and Yahoo Taiwan
+for matching vintage pieces — multi-region lanes for price-competitive finds.
+Sends findings to Telegram for approval.
 
 Setup:
   1. Copy .env.example to .env and fill in values
@@ -178,7 +178,16 @@ JP_FEMININE_INCLUDE = [
 ]
 
 JPY_PER_USD = 150
+TWD_PER_USD = 32
 DEFAULT_JAPAN_MAX_USD = 450
+DEFAULT_TAIWAN_MAX_USD = 500
+
+# Grailed location facets used for price-competitive regional sourcing
+GRAILED_REGIONS = (
+    ("United States", "US"),
+    ("Asia", "Asia"),       # JP / TW / Asia sellers
+    ("Europe", "Europe"),   # Italy + EU bargain lane
+)
 
 RULES = [
     {
@@ -201,6 +210,12 @@ RULES = [
             "シャネル 2.55",
             "シャネル クラシックフラップ",
             "シャネル レア バッグ",
+        ],
+        "tw_queries": [
+            "香奈兒 包 古董",
+            "香奈兒 2.55",
+            "Chanel classic flap",
+            "香奈兒 稀有 包",
         ],
         "max_price": 3500,
         "min_price": 200,
@@ -238,6 +253,12 @@ RULES = [
             "ディオール トロッター バッグ",
             "ディオール コロンブス",
             "ディオール レア バッグ",
+        ],
+        "tw_queries": [
+            "迪奧 馬鞍包",
+            "Dior saddle",
+            "迪奧 古董 包",
+            "Christian Dior bag",
         ],
         "max_price": 2500,
         "min_price": 80,
@@ -277,6 +298,11 @@ RULES = [
             "ガリアーノ ディオール 靴",
             "ディオール ミュール",
         ],
+        "tw_queries": [
+            "迪奧 高跟鞋",
+            "Dior Galliano heels",
+            "迪奧 鞋 古董",
+        ],
         "max_price": 900,
         "min_price": 50,
         "jp_min_price": 20,
@@ -311,6 +337,11 @@ RULES = [
             "ディオール ドレス ヴィンテージ",
             "ガリアーノ ディオール",
             "ディオール コルセット",
+        ],
+        "tw_queries": [
+            "迪奧 Galliano 洋裝",
+            "Dior Galliano dress",
+            "迪奧 古董 洋裝",
         ],
         "max_price": 1200,
         "min_price": 60,
@@ -350,6 +381,11 @@ RULES = [
             "ジャストカヴァリ ドレス",
             "カヴァリ セットアップ",
         ],
+        "tw_queries": [
+            "Cavalli 豹紋",
+            "Roberto Cavalli dress",
+            "Cavalli 洋裝",
+        ],
         "max_price": 700,
         "min_price": 40,
         "jp_min_price": 15,
@@ -383,6 +419,11 @@ RULES = [
             "ガリアーノ ドレス",
             "ガリアーノ アーカイブ",
             "ガリアーノ コルセット",
+        ],
+        "tw_queries": [
+            "Galliano 洋裝",
+            "John Galliano dress",
+            "Galliano 古董",
         ],
         "max_price": 1100,
         "min_price": 50,
@@ -418,6 +459,11 @@ RULES = [
             "トムフォード グッチ ドレス",
             "グッチ ジャッキー",
             "グッチ バンブー ヴィンテージ",
+        ],
+        "tw_queries": [
+            "Gucci Tom Ford",
+            "Tom Ford Gucci",
+            "古馳 古董",
         ],
         "max_price": 1200,
         "min_price": 60,
@@ -606,11 +652,20 @@ def save_settings(settings: dict):
     save_json(SETTINGS_DB, settings)
 
 def effective_price_bounds(rule: dict, platform: str | None = None) -> tuple[float, float]:
-    """Apply optional global /price override; Japan lane uses cheaper bounds."""
+    """Apply optional global /price override; Asia auction lanes use cheaper bounds."""
     settings = load_settings()
-    if platform in {"YahooJP", "Buyee", "Japan"}:
-        min_price = float(rule.get("jp_min_price", 15))
-        max_price = float(rule.get("jp_max_price", DEFAULT_JAPAN_MAX_USD))
+    asia_lane = platform in {
+        "YahooJP", "Buyee", "Japan", "YahooTW", "Taiwan",
+    }
+    if asia_lane:
+        if platform in {"YahooTW", "Taiwan"}:
+            min_price = float(rule.get("tw_min_price", rule.get("jp_min_price", 15)))
+            max_price = float(
+                rule.get("tw_max_price", rule.get("jp_max_price", DEFAULT_TAIWAN_MAX_USD))
+            )
+        else:
+            min_price = float(rule.get("jp_min_price", 15))
+            max_price = float(rule.get("jp_max_price", DEFAULT_JAPAN_MAX_USD))
     else:
         min_price = float(rule["min_price"])
         max_price = float(rule["max_price"])
@@ -940,7 +995,7 @@ HEADERS = {
 
 
 async def scrape_grailed(session: AsyncSession, rule: dict) -> list[dict]:
-    """Search Grailed via its public Algolia index."""
+    """Search Grailed via Algolia, split by US / Asia / Europe for price lanes."""
     results = []
     url = (
         f"https://{GRAILED_ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes/"
@@ -955,46 +1010,55 @@ async def scrape_grailed(session: AsyncSession, rule: dict) -> list[dict]:
         f'{rule["keywords"][0]} dress',
         f'{rule["keywords"][0]} bag clutch',
     ]
-    # Inject learned search queries from Approve training
     profile = load_taste_profile()
     if profile.get("ready"):
         for q in profile.get("learned_queries", [])[:5]:
             if q not in queries:
                 queries.append(q)
 
+    regions = rule.get("grailed_regions") or list(GRAILED_REGIONS)
+
     try:
         listings = []
         for query in queries:
-            payload = {
-                "query": query,
-                "hitsPerPage": 40,
-                "page": 0,
-            }
-            resp = await session.post(
-                url,
-                headers=headers,
-                data=json.dumps(payload),
-                timeout=HTTP_TIMEOUT_SECONDS,
-            )
-            if resp.status_code == 200:
-                listings.extend(resp.json().get("hits", []))
-            await asyncio.sleep(0.3)
+            for loc_name, loc_code in regions:
+                payload = {
+                    "query": query,
+                    "hitsPerPage": 28,
+                    "page": 0,
+                    "facetFilters": [[f"location:{loc_name}"]],
+                }
+                resp = await session.post(
+                    url,
+                    headers=headers,
+                    data=json.dumps(payload),
+                    timeout=HTTP_TIMEOUT_SECONDS,
+                )
+                if resp.status_code == 200:
+                    for hit in resp.json().get("hits", []):
+                        hit = dict(hit)
+                        hit["_region"] = loc_code
+                        hit["_region_label"] = loc_name
+                        listings.append(hit)
+                await asyncio.sleep(0.2)
 
         seen_ids = set()
-        for item in listings[:120]:
+        for item in listings[:200]:
             listing_id = str(item.get("id", ""))
             if listing_id in seen_ids:
                 continue
             seen_ids.add(listing_id)
 
-            title     = item.get("title", "")
-            price     = float(item.get("price_i", 0))
+            title = item.get("title", "")
+            price = float(item.get("price_i", 0))
             condition = item.get("condition", "")
-            photo     = (
+            photo = (
                 item.get("cover_photo", {}).get("url")
                 or item.get("cover_photo", {}).get("image_url", "")
             )
-            slug      = item.get("slug", listing_id)
+            slug = item.get("slug", listing_id)
+            region = item.get("_region") or "—"
+            region_label = item.get("_region_label") or item.get("location") or region
             extra = " ".join(
                 filter(
                     None,
@@ -1003,22 +1067,29 @@ async def scrape_grailed(session: AsyncSession, rule: dict) -> list[dict]:
                         item.get("category", ""),
                         item.get("category_path", ""),
                         item.get("designer_names", ""),
+                        str(region_label),
                     ],
                 )
             )
 
             if matches_rule(title, price, condition, rule, extra=extra):
                 results.append({
-                    "platform":  "Grailed",
-                    "id":        listing_id,
-                    "brand":     rule["brand"],
-                    "title":     title,
-                    "price":     price,
+                    "platform": "Grailed",
+                    "id": listing_id,
+                    "brand": rule["brand"],
+                    "title": title,
+                    "price": price,
                     "condition": condition,
-                    "photo":     photo,
-                    "heat":      float(item.get("heat_f") or item.get("heat") or 0),
-                    "taste":     taste_score(title, rule["brand"], extra),
-                    "url":       f"https://www.grailed.com/listings/{slug}" if slug else item.get("url", ""),
+                    "photo": photo,
+                    "heat": float(item.get("heat_f") or item.get("heat") or 0),
+                    "taste": taste_score(title, rule["brand"], extra),
+                    "url": (
+                        f"https://www.grailed.com/listings/{slug}"
+                        if slug
+                        else item.get("url", "")
+                    ),
+                    "region": region,
+                    "region_label": region_label,
                 })
     except Exception as e:
         log.warning(f"Grailed scrape error: {e}")
@@ -1276,6 +1347,8 @@ async def scrape_vestiaire(session: AsyncSession, rule: dict) -> list[dict]:
                     "photo":     item["photo"],
                     "taste":     taste_score(title, rule["brand"], item.get("url", "")),
                     "url":       item["url"],
+                    "region": "EU",
+                    "region_label": "Europe / Italy lane",
                 })
     except Exception as e:
         log.warning(f"Vestiaire scrape error: {e}")
@@ -1358,10 +1431,89 @@ async def scrape_yahoo_jp(session: AsyncSession, rule: dict) -> list[dict]:
                         "taste":     taste_score(title, rule["brand"]),
                         "url":       buyee_url,
                         "source_url": href,
+                        "region": "JP",
+                        "region_label": "Japan",
                     })
             await asyncio.sleep(0.4)
         except Exception as e:
             log.warning("YahooJP scrape error (%s): %s", query, e)
+
+    return results
+
+
+async def scrape_yahoo_tw(session: AsyncSession, rule: dict) -> list[dict]:
+    """Search Yahoo Auctions Taiwan — often priced below US / EU comps."""
+    results = []
+    seen_ids: set[str] = set()
+    queries = list(dict.fromkeys([
+        *(rule.get("tw_queries") or []),
+        *(rule.get("search_queries") or [])[:2],
+    ]))
+    min_usd, max_usd = effective_price_bounds(rule, platform="YahooTW")
+    min_twd = int(min_usd * TWD_PER_USD)
+    max_twd = int(max_usd * TWD_PER_USD)
+
+    for query in queries:
+        if not query:
+            continue
+        url = f"https://tw.bid.yahoo.com/search/auction/product?p={quote(query)}"
+        try:
+            resp = await session.get(url, headers=HEADERS, timeout=HTTP_TIMEOUT_SECONDS)
+            if resp.status_code != 200:
+                log.warning("YahooTW status %s for %s", resp.status_code, query)
+                continue
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for link in soup.select('a[href*="/item/"]')[:40]:
+                href = link.get("href") or ""
+                if "/item/" not in href:
+                    continue
+                item_id = href.rstrip("/").split("/")[-1].split("?")[0]
+                if not item_id or item_id in seen_ids:
+                    continue
+                title = link.get_text(" ", strip=True)
+                if not title or len(title) < 6:
+                    continue
+                # Prefer price from the link text: "$ 54,000" is TWD on Yahoo TW
+                money = re.findall(r"\$\s*([\d,]+)", title)
+                if not money:
+                    parent = link.find_parent(["li", "div", "article"])
+                    blob = parent.get_text(" ", strip=True) if parent else title
+                    money = re.findall(r"\$\s*([\d,]+)", blob)
+                if not money:
+                    continue
+                try:
+                    # Use the lower of first two prices when a strike + sale show up
+                    prices_twd = [float(m.replace(",", "")) for m in money[:2]]
+                    price_twd = min(prices_twd)
+                    if price_twd < min_twd or price_twd > max_twd:
+                        # Still let matches_rule decide with USD conversion
+                        pass
+                    price_usd = price_twd / TWD_PER_USD
+                except Exception:
+                    continue
+
+                seen_ids.add(item_id)
+                # Drop noise words from title for matching (prices etc.)
+                clean_title = re.sub(r"\$\s*[\d,]+", " ", title)
+                clean_title = re.sub(r"\s+", " ", clean_title).strip()
+
+                if matches_rule(clean_title, price_usd, "B", rule, platform="YahooTW"):
+                    results.append({
+                        "platform": "YahooTW",
+                        "id": item_id,
+                        "brand": rule["brand"],
+                        "title": clean_title[:180],
+                        "price": round(price_usd, 2),
+                        "condition": "TW auction",
+                        "photo": "",
+                        "taste": taste_score(clean_title, rule["brand"]),
+                        "url": href if href.startswith("http") else f"https://tw.bid.yahoo.com/item/{item_id}",
+                        "region": "TW",
+                        "region_label": "Taiwan",
+                    })
+            await asyncio.sleep(0.45)
+        except Exception as e:
+            log.warning("YahooTW scrape error (%s): %s", query, e)
 
     return results
 
@@ -1383,7 +1535,12 @@ async def run_sourcing_scan(app):
             log.info(f"Scanning for {rule['brand']}...")
             # Run platforms one-by-one so Telegram polling stays responsive
             all_results = []
-            for scraper in (scrape_grailed, scrape_vestiaire, scrape_yahoo_jp):
+            for scraper in (
+                scrape_grailed,
+                scrape_vestiaire,
+                scrape_yahoo_jp,
+                scrape_yahoo_tw,
+            ):
                 try:
                     batch = await scraper(session, rule)
                     all_results.extend(batch)
@@ -1433,13 +1590,16 @@ async def send_item_to_telegram(app, item: dict, uid: str):
         "⚪"
     )
 
+    region = item.get("region_label") or item.get("region") or ""
+    region_line = f"📍 Region: {region}\n" if region else ""
     text = (
         "feling. sourcing agent\n\n"
         f"🏷 {item['brand']}\n"
         f"📝 {item['title']}\n\n"
         f"💰 ${item['price']:.0f} USD\n"
         f"{cond_icon} Condition: {item['condition']}\n"
-        f"🌐 Platform: {item['platform']}\n\n"
+        f"🌐 Platform: {item['platform']}\n"
+        f"{region_line}\n"
         f"{item['url']}"
     )
 

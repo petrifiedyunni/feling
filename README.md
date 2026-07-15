@@ -1,7 +1,7 @@
 # feling. Sourcing Agent
 
-A Telegram bot that monitors Grailed, Vestiaire Collective, and Buyee (Yahoo Auctions Japan)
-for archive Cavalli, Dior, and Versace pieces matching your price + condition criteria.
+A Telegram bot that monitors Grailed (**US / Asia / Europe**), Vestiaire, Yahoo Japan, and Yahoo Taiwan
+for archive Cavalli, Dior, Chanel, and Versace pieces — multi-region sourcing for sharper prices.
 When a match is found, it sends you a photo + details on Telegram. You tap Approve or Skip.
 
 ---
@@ -72,9 +72,9 @@ Each Monday (or your day), the agent re-sources comparable listings on Grailed f
 Every 30 min
      │
      ▼
-[Scan Grailed] [Scan Vestiaire] [Scan Buyee]
-     │               │               │
-     └───────────────┴───────────────┘
+[Scan Grailed US/Asia/EU] [Vestiaire] [Yahoo JP] [Yahoo TW]
+     │               │               │           │
+     └───────────────┴───────────────┴───────────┘
                      │
               Filter by rules
               (brand, price, condition)
