@@ -15,7 +15,8 @@ import { productImage } from "../productImage";
 const products = catalog as Product[];
 const STORAGE_KEY = "feling-playground-v5";
 const DOLL = "/playground-doll.png";
-const BASE_W = 210;
+const DOLL_HEAD = "/playground-doll-head.png";
+const BASE_W = 200;
 
 type Slot = "dress" | "top" | "bottom" | "shoes" | "bag" | "other";
 
@@ -67,15 +68,15 @@ function slotFor(p: Product): Slot {
 function defaultPose(slot: Slot): Pick<Placed, "x" | "y" | "scale" | "rot" | "z"> {
   switch (slot) {
     case "dress":
-      return { x: 50, y: 54, scale: 0.92, rot: 0, z: 20 };
+      return { x: 50, y: 58, scale: 0.72, rot: 0, z: 20 };
     case "top":
-      return { x: 50, y: 40, scale: 0.66, rot: 0, z: 25 };
+      return { x: 50, y: 46, scale: 0.58, rot: 0, z: 25 };
     case "bottom":
-      return { x: 50, y: 64, scale: 0.66, rot: 0, z: 18 };
+      return { x: 50, y: 68, scale: 0.58, rot: 0, z: 18 };
     case "shoes":
-      return { x: 50, y: 88, scale: 0.4, rot: 0, z: 30 };
+      return { x: 50, y: 90, scale: 0.34, rot: 0, z: 30 };
     case "bag":
-      return { x: 70, y: 56, scale: 0.44, rot: -6, z: 28 };
+      return { x: 72, y: 58, scale: 0.38, rot: -6, z: 28 };
     default:
       return { x: 50, y: 50, scale: 0.55, rot: 0, z: 22 };
   }
@@ -226,7 +227,7 @@ export function PlaygroundPage() {
   }, [activeUid]);
 
   const bringFront = (uid: string) => {
-    zCounter.current += 1;
+    zCounter.current = Math.min(zCounter.current + 1, 90);
     setPlaced((prev) =>
       prev.map((p) => (p.uid === uid ? { ...p, z: zCounter.current } : p))
     );
@@ -342,12 +343,12 @@ export function PlaygroundPage() {
             onDrop={onStageDrop}
             onClick={() => setActiveUid(null)}
           >
-            {/* background-image doll — immune to global img max-width collapse */}
+            {/* Body under clothes; head always on top so outfits can't erase her face */}
             <div
-              className="walkin__doll"
+              className="walkin__doll walkin__doll--body"
               role="img"
               aria-label="You"
-              style={{ backgroundImage: `url(${DOLL}?v=4)` }}
+              style={{ backgroundImage: `url(${DOLL}?v=5)` }}
             />
 
             {placed.map((piece) => {
@@ -415,6 +416,12 @@ export function PlaygroundPage() {
                 </div>
               );
             })}
+
+            <div
+              className="walkin__doll walkin__doll--head"
+              aria-hidden
+              style={{ backgroundImage: `url(${DOLL_HEAD}?v=5)` }}
+            />
           </div>
 
           <div className="walkin__tools">

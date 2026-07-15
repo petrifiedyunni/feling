@@ -2075,8 +2075,16 @@ img {
   background-position: center bottom;
   background-size: contain;
   pointer-events: none;
-  z-index: 1;
   filter: drop-shadow(0 16px 22px rgba(120, 40, 70, 0.22));
+}
+
+.walkin__doll--body {
+  z-index: 1;
+}
+
+.walkin__doll--head {
+  z-index: 999;
+  filter: drop-shadow(0 6px 10px rgba(120, 40, 70, 0.12));
 }
 
 .walkin__tools {
