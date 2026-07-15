@@ -4,6 +4,7 @@ import { PaymentMarks } from "./PaymentMarks";
 
 const QUICK_LINKS = [
   { label: "Shop all", to: "/shop" },
+  { label: "Playground", to: "/playground" },
   { label: "Contact", to: "mailto:hello@feling.archive" },
   { label: "Privacy policy", to: "/#privacy" },
   { label: "Terms of service", to: "/#terms" },

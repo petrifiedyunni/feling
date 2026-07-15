@@ -4,6 +4,7 @@ import { HomePage } from "./pages/HomePage";
 import { ShopPage } from "./pages/ShopPage";
 import { ProductPage } from "./pages/ProductPage";
 import { CheckoutPage } from "./pages/CheckoutPage";
+import { PlaygroundPage } from "./pages/PlaygroundPage";
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
         <Route path="shop" element={<ShopPage />} />
         <Route path="shop/:category" element={<ShopPage />} />
         <Route path="piece/:slug" element={<ProductPage />} />
+        <Route path="playground" element={<PlaygroundPage />} />
         <Route path="checkout" element={<CheckoutPage />} />
       </Route>
     </Routes>

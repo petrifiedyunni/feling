@@ -53,6 +53,9 @@ export function SiteShell() {
           <NavLink to="/shop/ready-to-wear" onClick={closeSide}>
             Clothing
           </NavLink>
+          <NavLink to="/playground" onClick={closeSide}>
+            Playground
+          </NavLink>
           <NavLink to="/shop" onClick={closeSide}>
             Accessories
           </NavLink>
