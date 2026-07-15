@@ -55,21 +55,21 @@ export function HeroSpill() {
   const committedRef = useRef(false);
 
   const drops = useMemo(() => {
-    // Prefer clothing cutouts for the rack / little boxes
-    const clothes = products.filter(
-      (p) => p.category === "ready-to-wear" && CUTOUTS[p.id]
+    // Prefer single-subject cutouts (clothes + shoes) for the little boxes
+    const cut = products.filter(
+      (p) =>
+        (p.category === "ready-to-wear" || p.category === "shoes") &&
+        CUTOUTS[p.id]
     );
     const bags = products.filter((p) => p.category === "bags");
-    const shoes = products.filter((p) => p.category === "shoes");
     const mixed: Product[] = [];
-    const maxN = Math.max(clothes.length, bags.length, shoes.length, 1);
+    const maxN = Math.max(cut.length, bags.length, 1);
     for (let i = 0; i < maxN && mixed.length < 12; i++) {
-      if (clothes[i]) mixed.push(clothes[i]);
+      if (cut[i]) mixed.push(cut[i]);
       if (bags[i] && mixed.length < 12) mixed.push(bags[i]);
-      if (shoes[i] && mixed.length < 12) mixed.push(shoes[i]);
     }
     if (mixed.length < 8) {
-      for (const c of clothes) {
+      for (const c of cut) {
         if (mixed.length >= 12) break;
         if (!mixed.includes(c)) mixed.push(c);
       }

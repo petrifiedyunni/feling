@@ -10,7 +10,7 @@
     "sync": "node scripts/sync-catalog.mjs",
     "publish": "node scripts/publish-catalog.mjs --cutouts",
     "cutouts": "../.venv/bin/python scripts/cutout-drops.py",
-    "prep-images": "../.venv/bin/python ../.cursor/skills/archive-product-images/scripts/prepare_product_images.py --clothing-only --missing"
+    "prep-images": "../.venv/bin/python scripts/prepare_product_images.py --clothing-only --missing"
   },
   "dependencies": {
     "react": "^19.0.0",

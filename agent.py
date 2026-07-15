@@ -564,7 +564,7 @@ def categorize_item(item: dict) -> str:
 
 
 def publish_to_website(item: dict | None = None) -> str:
-    """Sync catalog; prep clothing cutout when the approved piece is RTW."""
+    """Sync catalog; prep cutout when the approved piece is clothing or shoes."""
     web = Path("web")
     node = "node"
     sync = web / "scripts" / "publish-catalog.mjs"
@@ -573,11 +573,11 @@ def publish_to_website(item: dict | None = None) -> str:
 
     cat = categorize_item(item) if item else ""
     args = [node, str(sync)]
-    if item and cat == "ready-to-wear":
+    if item and cat in ("ready-to-wear", "shoes"):
         args.append("--cutouts")
         args.append(f"--ids={listing_uid(item)}")
     else:
-        # Always refresh catalog; clothing cutouts catch up via npm run publish
+        # Always refresh catalog; apparel cutouts catch up via npm run publish
         pass
 
     try:

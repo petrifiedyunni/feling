@@ -11,10 +11,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
 const web = path.resolve(__dirname, "..");
 const venvPython = path.join(root, ".venv/bin/python");
-const prep = path.join(
-  root,
-  ".cursor/skills/archive-product-images/scripts/prepare_product_images.py"
-);
+const prep = path.join(__dirname, "prepare_product_images.py");
+
 
 const args = process.argv.slice(2);
 const wantCutouts = args.includes("--cutouts") || args.includes("--clothing");

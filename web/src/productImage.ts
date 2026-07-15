@@ -3,9 +3,11 @@ import type { Product } from "./types";
 
 const CUTOUTS = cutouts as Record<string, string>;
 
-/** Single-subject cutouts are clothing-only; bags/shoes keep listing photos. */
+/** Cutouts for clothing + shoes (bags keep listing photos). */
+const CUTOUT_CATEGORIES = new Set(["ready-to-wear", "shoes"]);
+
 export function productImage(product: Product): string {
-  if (product.category === "ready-to-wear" && CUTOUTS[product.id]) {
+  if (CUTOUT_CATEGORIES.has(product.category) && CUTOUTS[product.id]) {
     return CUTOUTS[product.id];
   }
   return product.photo;
