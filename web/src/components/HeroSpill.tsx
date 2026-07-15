@@ -55,26 +55,11 @@ export function HeroSpill() {
   const committedRef = useRef(false);
 
   const drops = useMemo(() => {
-    // Prefer single-subject cutouts (clothes + shoes) for the little boxes
-    const cut = products.filter(
-      (p) =>
-        (p.category === "ready-to-wear" || p.category === "shoes") &&
-        CUTOUTS[p.id]
-    );
-    const bags = products.filter((p) => p.category === "bags");
-    const mixed: Product[] = [];
-    const maxN = Math.max(cut.length, bags.length, 1);
-    for (let i = 0; i < maxN && mixed.length < 12; i++) {
-      if (cut[i]) mixed.push(cut[i]);
-      if (bags[i] && mixed.length < 12) mixed.push(bags[i]);
-    }
-    if (mixed.length < 8) {
-      for (const c of cut) {
-        if (mixed.length >= 12) break;
-        if (!mixed.includes(c)) mixed.push(c);
-      }
-    }
-    return mixed;
+    // Prefer anything with a cutout so boxes never show raw listing squares
+    const cut = products.filter((p) => CUTOUTS[p.id]);
+    if (cut.length >= 12) return cut.slice(0, 12);
+    const rest = products.filter((p) => !CUTOUTS[p.id]);
+    return [...cut, ...rest].slice(0, 12);
   }, []);
 
   useEffect(() => {

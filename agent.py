@@ -573,11 +573,11 @@ def publish_to_website(item: dict | None = None) -> str:
 
     cat = categorize_item(item) if item else ""
     args = [node, str(sync)]
-    if item and cat in ("ready-to-wear", "shoes"):
+    if item and cat in ("ready-to-wear", "shoes", "bags"):
         args.append("--cutouts")
         args.append(f"--ids={listing_uid(item)}")
     else:
-        # Always refresh catalog; apparel cutouts catch up via npm run publish
+        # Always refresh catalog; cutouts catch up via npm run publish
         pass
 
     try:

@@ -212,16 +212,14 @@ def prepare(im: Image.Image) -> Image.Image:
     return cut
 
 
-CUTOUT_CATS = frozenset({"ready-to-wear", "shoes"})
+CUTOUT_CATS = frozenset({"ready-to-wear", "shoes", "bags"})
 
 
 def pick_apparel(catalog: list[dict], limit: int) -> list[dict]:
     items = [p for p in catalog if p.get("category") in CUTOUT_CATS]
-    # Shoes first so missing shoes get prepared before clothing fill
-    shoes = [p for p in items if p.get("category") == "shoes"]
-    clothes = [p for p in items if p.get("category") == "ready-to-wear"]
-    ordered = shoes + clothes
-    return ordered[:limit]
+    order = {"bags": 0, "shoes": 1, "ready-to-wear": 2}
+    items.sort(key=lambda p: (order.get(str(p.get("category")), 9), p.get("id", "")))
+    return items[:limit]
 
 
 def main() -> int:
@@ -237,7 +235,7 @@ def main() -> int:
     parser.add_argument(
         "--clothing-only",
         action="store_true",
-        help="Only prepare ready-to-wear + shoe single-subject cutouts (bags excluded)",
+        help="Prepare single-subject cutouts for clothing, shoes, and bags",
     )
     parser.add_argument(
         "--missing",
@@ -292,7 +290,7 @@ def main() -> int:
         except Exception as e:
             print(f"    fail {e}")
 
-    # Keep map to apparel cutouts only (bags stay as listing photos)
+    # Keep map to catalog cutout categories only
     if args.clothing_only:
         keep = {p["id"] for p in catalog if p.get("category") in CUTOUT_CATS}
         mapping = {k: v for k, v in mapping.items() if k in keep}
