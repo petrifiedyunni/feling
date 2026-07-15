@@ -2015,12 +2015,13 @@ img {
 
 .walkin {
   position: relative;
-  width: min(1280px, calc(100% - 2rem));
+  width: min(1400px, calc(100% - 1.5rem));
   margin: 0 auto;
   /* Clear the fixed topbar — inventory was sliding under it */
-  padding: 5.75rem 0.75rem 3rem;
+  padding: 5.5rem 0.5rem 1.25rem;
   box-sizing: border-box;
   isolation: isolate;
+  min-height: 100svh;
 }
 
 .walkin__room {
@@ -2036,9 +2037,9 @@ img {
 .walkin__layout {
   display: grid;
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); /* 60 / 40 */
-  gap: 1.1rem;
+  gap: 1.25rem;
   align-items: stretch;
-  min-height: min(78vh, 760px);
+  min-height: calc(100svh - 6.75rem);
   width: 100%;
   box-sizing: border-box;
 }
@@ -2046,8 +2047,9 @@ img {
 .walkin__stage-col {
   display: grid;
   grid-template-rows: 1fr auto;
-  gap: 0.5rem;
+  gap: 0.65rem;
   min-width: 0;
+  min-height: 0;
   position: relative;
   z-index: 2;
 }
@@ -2056,7 +2058,7 @@ img {
 .walkin__stage {
   position: relative;
   z-index: 1;
-  min-height: min(74vh, 760px);
+  min-height: 0;
   height: 100%;
   border-radius: 0;
   overflow: visible;
@@ -2071,16 +2073,16 @@ img {
   display: none;
 }
 
-/* You — larger, still cleared from the topbar */
+/* You — fill the stage height */
 .walkin__you-body,
 .walkin__you-head {
   position: absolute;
   left: 48%;
   bottom: 0;
   transform: translateX(-50%);
-  height: 92%;
+  height: 96%;
   width: auto;
-  max-width: min(520px, 78%);
+  max-width: min(620px, 92%);
   object-fit: contain;
   object-position: center bottom;
   pointer-events: none !important;
@@ -2194,24 +2196,26 @@ img {
   min-height: 0;
   min-width: 0;
   max-width: 100%;
+  height: 100%;
   overflow: hidden;
   position: relative;
   z-index: 1;
   box-sizing: border-box;
-  padding: 0.85rem 0.85rem 0.85rem;
-  border-radius: 18px;
+  padding: 1rem 1rem 1rem;
+  border-radius: 20px;
   background:
-    linear-gradient(165deg, rgba(255, 252, 253, 0.82), rgba(255, 232, 240, 0.68));
+    linear-gradient(165deg, rgba(255, 252, 253, 0.88), rgba(255, 232, 240, 0.74));
   border: 1px solid rgba(232, 150, 175, 0.42);
-  box-shadow: 0 14px 28px rgba(170, 60, 100, 0.1);
+  box-shadow: 0 16px 32px rgba(170, 60, 100, 0.12);
   backdrop-filter: blur(12px);
 }
 
 .inv__chrome {
   display: grid;
   gap: 0.45rem;
-  margin-bottom: 0.55rem;
+  margin-bottom: 0.7rem;
   min-width: 0;
+  flex: 0 0 auto;
 }
 
 .inv__kicker {
@@ -2225,22 +2229,22 @@ img {
 .inv__tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.28rem;
-  padding: 0.22rem;
+  gap: 0.35rem;
+  padding: 0.28rem;
   border-radius: 999px;
   background: rgba(255, 220, 230, 0.45);
   min-width: 0;
 }
 
 .inv__tabs button {
-  height: 2rem;
+  height: 2.35rem;
   min-width: 0;
   border-radius: 999px;
   border: 1px solid transparent;
   background: transparent;
   color: #b07a84;
-  font-size: 0.58rem;
-  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
 }
@@ -2255,13 +2259,15 @@ img {
 .inv__grid {
   list-style: none;
   margin: 0;
-  padding: 0 0.15rem 0.25rem 0;
+  padding: 0 0.2rem 0.35rem 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
+  gap: 0.65rem;
   overflow: auto;
   overflow-x: hidden;
-  max-height: min(72vh, 700px);
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   align-content: start;
   scrollbar-gutter: stable;
   animation: inv-in 220ms ease;
@@ -2289,8 +2295,8 @@ img {
   box-sizing: border-box;
   width: 100%;
   aspect-ratio: 1 / 1;
-  padding: 0.45rem;
-  border-radius: 12px;
+  padding: 0.55rem;
+  border-radius: 14px;
   border: 1px solid rgba(255, 180, 200, 0.55);
   background:
     radial-gradient(circle at 50% 30%, #fff, transparent 60%),
@@ -2411,7 +2417,8 @@ img {
 @media (max-width: 900px) {
   .walkin {
     width: calc(100% - 1rem);
-    padding: 5.5rem 0.5rem 2.5rem;
+    padding: 5.5rem 0.5rem 1.5rem;
+    min-height: auto;
   }
 
   .walkin__layout {
@@ -2420,19 +2427,24 @@ img {
   }
 
   .walkin__stage {
-    min-height: 480px;
+    min-height: 56vh;
   }
 
   .walkin__you-body,
   .walkin__you-head {
     left: 50%;
-    height: 88%;
-    max-width: min(420px, 70%);
+    height: 94%;
+    max-width: min(480px, 82%);
+  }
+
+  .inv {
+    height: auto;
+    max-height: 42vh;
   }
 
   .inv__grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    max-height: 240px;
+    max-height: 34vh;
   }
 }
 

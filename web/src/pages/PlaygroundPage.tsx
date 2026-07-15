@@ -7,7 +7,7 @@ import { productImage } from "../productImage";
 
 const products = catalog as Product[];
 const STORAGE_KEY = "feling-playground-v11";
-const BASE_W = 220;
+const BASE_W = 260;
 
 type Placed = {
   uid: string;
@@ -32,14 +32,14 @@ const TABS: { id: InvTab; label: string }[] = [
 function slotPose(p: Product): Pick<Placed, "x" | "y" | "scale" | "rot" | "z"> {
   const t = `${p.title} ${p.category}`.toLowerCase();
   if (p.category === "shoes" || /heel|shoe|boot|sandal|mule|pump/.test(t))
-    return { x: 48, y: 92, scale: 0.4, rot: 0, z: 30 };
+    return { x: 48, y: 92, scale: 0.42, rot: 0, z: 30 };
   if (p.category === "bags" || /\bbag\b|tote|clutch|purse/.test(t))
-    return { x: 64, y: 58, scale: 0.42, rot: -5, z: 28 };
+    return { x: 66, y: 58, scale: 0.45, rot: -5, z: 28 };
   if (/skirt|pant|trouser|jean|short/.test(t))
-    return { x: 48, y: 74, scale: 0.64, rot: 0, z: 18 };
+    return { x: 48, y: 74, scale: 0.7, rot: 0, z: 18 };
   if (/jacket|blazer|coat|top|shirt|knit|corset|bustier|blouse/.test(t))
-    return { x: 48, y: 52, scale: 0.58, rot: 0, z: 25 };
-  return { x: 48, y: 62, scale: 0.72, rot: 0, z: 20 };
+    return { x: 48, y: 52, scale: 0.62, rot: 0, z: 25 };
+  return { x: 48, y: 62, scale: 0.78, rot: 0, z: 20 };
 }
 
 function load(): Placed[] {
