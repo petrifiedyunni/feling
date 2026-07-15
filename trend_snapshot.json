@@ -1,0 +1,73 @@
+{
+  "updated_at": "2026-07-11T22:44:25.356699",
+  "personal": [
+    [
+      "galliano",
+      7
+    ],
+    [
+      "vintage",
+      3
+    ],
+    [
+      "columbus",
+      1
+    ],
+    [
+      "cavalli",
+      1
+    ],
+    [
+      "archive",
+      1
+    ],
+    [
+      "mini dress",
+      1
+    ]
+  ],
+  "market": [
+    {
+      "query": "tom ford gucci",
+      "count": 20,
+      "avg_heat": 4593.5,
+      "avg_price": 339.0
+    },
+    {
+      "query": "galliano dior",
+      "count": 20,
+      "avg_heat": 4592.4,
+      "avg_price": 804.0
+    },
+    {
+      "query": "cavalli leopard dress",
+      "count": 20,
+      "avg_heat": 4581.0,
+      "avg_price": 394.0
+    },
+    {
+      "query": "y2k archive dress",
+      "count": 20,
+      "avg_heat": 4572.0,
+      "avg_price": 109.0
+    },
+    {
+      "query": "dior bondage",
+      "count": 20,
+      "avg_heat": 4567.1,
+      "avg_price": 560.0
+    },
+    {
+      "query": "dior columbus",
+      "count": 20,
+      "avg_heat": 4519.6,
+      "avg_price": 1606.0
+    },
+    {
+      "query": "gucci jackie tom ford",
+      "count": 14,
+      "avg_heat": 4395.4,
+      "avg_price": 652.0
+    }
+  ]
+}

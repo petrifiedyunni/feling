@@ -1,0 +1,16 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.cursor/
+
+# Bot runtime / large local state
+pending.json
+seen_ids.json
+reports/
+
+# Web
+web/node_modules/
+web/dist/
+.vercel/
