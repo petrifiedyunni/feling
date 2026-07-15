@@ -13,7 +13,7 @@ import { formatPrice } from "../types";
 import { productImage } from "../productImage";
 
 const products = catalog as Product[];
-const STORAGE_KEY = "feling-playground-v4";
+const STORAGE_KEY = "feling-playground-v5";
 const DOLL = "/playground-doll.png";
 const BASE_W = 210;
 
@@ -110,7 +110,7 @@ function localDelta(dx: number, dy: number, rotDeg: number) {
   };
 }
 
-function Rail({
+function ShopPanel({
   title,
   items,
   onPick,
@@ -119,45 +119,29 @@ function Rail({
   items: Product[];
   onPick: (p: Product) => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const scroll = (d: -1 | 1) => {
-    ref.current?.scrollBy({ left: d * 280, behavior: "smooth" });
-  };
-
   return (
-    <section className="rail">
-      <div className="rail__bar">
-        <h2>{title}</h2>
-        <div className="rail__btns">
-          <button type="button" onClick={() => scroll(-1)} aria-label="Previous">
-            ‹
-          </button>
-          <button type="button" onClick={() => scroll(1)} aria-label="Next">
-            ›
-          </button>
-        </div>
-      </div>
-      <div className="rail__pole" aria-hidden />
-      <div className="rail__scroll" ref={ref}>
+    <aside className="shop">
+      <h2 className="shop__title">{title}</h2>
+      <ul className="shop__grid">
         {items.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            className="rail__piece"
-            draggable
-            title={`${p.designer} — ${p.title}`}
-            onDragStart={(e) => {
-              e.dataTransfer.setData("text/product-id", p.id);
-              e.dataTransfer.effectAllowed = "copy";
-            }}
-            onClick={() => onPick(p)}
-          >
-            <i className="rail__hanger" aria-hidden />
-            <img src={productImage(p)} alt={p.title} />
-          </button>
+          <li key={p.id}>
+            <button
+              type="button"
+              className="shop__slot"
+              draggable
+              title={`${p.designer} — ${p.title}`}
+              onDragStart={(e) => {
+                e.dataTransfer.setData("text/product-id", p.id);
+                e.dataTransfer.effectAllowed = "copy";
+              }}
+              onClick={() => onPick(p)}
+            >
+              <img src={productImage(p)} alt={p.title} />
+            </button>
+          </li>
         ))}
-      </div>
-    </section>
+      </ul>
+    </aside>
   );
 }
 
@@ -167,6 +151,7 @@ export function PlaygroundPage() {
     typeof window === "undefined" ? [] : loadPlaced()
   );
   const [activeUid, setActiveUid] = useState<string | null>(null);
+  const [rightTab, setRightTab] = useState<"shoes" | "bags">("shoes");
   const gestureRef = useRef<Gesture | null>(null);
   const zCounter = useRef(40);
 
@@ -177,6 +162,7 @@ export function PlaygroundPage() {
   );
   const shoes = useMemo(() => products.filter((p) => p.category === "shoes"), []);
   const bags = useMemo(() => products.filter((p) => p.category === "bags"), []);
+  const rightItems = rightTab === "shoes" ? shoes : bags;
 
   const active = placed.find((p) => p.uid === activeUid);
   const activeProduct = active ? byId.get(active.productId) : undefined;
@@ -345,8 +331,8 @@ export function PlaygroundPage() {
     <section className="walkin">
       <div className="walkin__bg" aria-hidden />
 
-      <div className="walkin__inner">
-        <Rail title="Clothes" items={clothes} onPick={addPiece} />
+      <div className="walkin__layout">
+        <ShopPanel title="Clothes" items={clothes} onPick={addPiece} />
 
         <div className="walkin__center">
           <div
@@ -356,11 +342,12 @@ export function PlaygroundPage() {
             onDrop={onStageDrop}
             onClick={() => setActiveUid(null)}
           >
-            <img
+            {/* background-image doll — immune to global img max-width collapse */}
+            <div
               className="walkin__doll"
-              src={`${DOLL}?v=2`}
-              alt="You"
-              draggable={false}
+              role="img"
+              aria-label="You"
+              style={{ backgroundImage: `url(${DOLL}?v=3)` }}
             />
 
             {placed.map((piece) => {
@@ -456,8 +443,29 @@ export function PlaygroundPage() {
           </div>
         </div>
 
-        <Rail title="Shoes" items={shoes} onPick={addPiece} />
-        <Rail title="Bags" items={bags} onPick={addPiece} />
+        <div className="walkin__right">
+          <div className="shop__tabs">
+            <button
+              type="button"
+              className={rightTab === "shoes" ? "is-on" : undefined}
+              onClick={() => setRightTab("shoes")}
+            >
+              Shoes
+            </button>
+            <button
+              type="button"
+              className={rightTab === "bags" ? "is-on" : undefined}
+              onClick={() => setRightTab("bags")}
+            >
+              Bags
+            </button>
+          </div>
+          <ShopPanel
+            title={rightTab === "shoes" ? "Shoes" : "Bags"}
+            items={rightItems}
+            onPick={addPiece}
+          />
+        </div>
       </div>
     </section>
   );

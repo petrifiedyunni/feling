@@ -2015,9 +2015,9 @@ img {
 
 .walkin {
   position: relative;
-  width: min(1080px, calc(100% - 1rem));
+  width: min(1200px, calc(100% - 0.75rem));
   margin: 0 auto;
-  padding: 0.35rem 0 3rem;
+  padding: 0.4rem 0 3rem;
   isolation: isolate;
 }
 
@@ -2026,49 +2026,57 @@ img {
   inset: 0;
   z-index: -1;
   background:
-    linear-gradient(180deg, rgba(255, 248, 250, 0.78), rgba(252, 230, 236, 0.9)),
+    linear-gradient(180deg, rgba(255, 248, 250, 0.72), rgba(252, 230, 236, 0.88)),
     url("/playground-closet-bg.png") center / cover no-repeat;
   pointer-events: none;
 }
 
-.walkin__inner {
+.walkin__layout {
   display: grid;
-  gap: 1rem;
+  grid-template-columns: minmax(170px, 240px) minmax(0, 1fr) minmax(170px, 240px);
+  gap: 0.75rem;
+  align-items: stretch;
+  min-height: min(78vh, 760px);
 }
 
 .walkin__center {
   display: grid;
-  gap: 0.55rem;
+  grid-template-rows: 1fr auto;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
 .walkin__stage {
   position: relative;
-  height: min(58vh, 620px);
-  min-height: 420px;
-  border-radius: 28px;
+  min-height: min(70vh, 680px);
+  height: 100%;
+  border-radius: 24px;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 50% 18%, rgba(255, 255, 255, 0.85), transparent 50%),
-    linear-gradient(180deg, #fff4f7 0%, #ffe3ec 48%, #f5c9d5 100%);
+    radial-gradient(ellipse at 50% 12%, rgba(255, 255, 255, 0.9), transparent 48%),
+    linear-gradient(180deg, #fff5f8 0%, #ffe4ed 50%, #f4c6d4 100%);
   box-shadow:
-    0 22px 48px rgba(170, 60, 100, 0.16),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.65);
+    0 22px 44px rgba(170, 60, 100, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7);
   touch-action: none;
   user-select: none;
 }
 
+/* Doll as sized box + background-image so global img{max-width:100%} can't zero it */
 .walkin__doll {
   position: absolute;
   left: 50%;
-  bottom: 1.5%;
+  bottom: 2%;
   transform: translateX(-50%);
-  height: 92%;
-  width: auto;
-  max-width: min(280px, 48%);
-  object-fit: contain;
+  width: clamp(150px, 34%, 280px);
+  height: 90%;
+  max-width: none;
+  background-repeat: no-repeat;
+  background-position: center bottom;
+  background-size: contain;
   pointer-events: none;
   z-index: 1;
-  filter: drop-shadow(0 16px 22px rgba(120, 40, 70, 0.2));
+  filter: drop-shadow(0 16px 22px rgba(120, 40, 70, 0.22));
 }
 
 .walkin__tools {
@@ -2111,103 +2119,105 @@ img {
   padding: 0.15rem 0;
 }
 
-/* Hanging rail shelves */
-.rail__bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 0.2rem;
-  margin-bottom: 0.15rem;
+.walkin__right {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 0.35rem;
+  min-height: 0;
 }
 
-.rail__bar h2 {
-  margin: 0;
-  font-family: var(--display);
-  font-style: italic;
-  font-weight: 500;
-  font-size: 1.2rem;
-  color: #7a3d4a;
+.walkin__right .shop {
+  min-height: 0;
 }
 
-.rail__btns {
+.shop__tabs {
   display: flex;
   gap: 0.25rem;
 }
 
-.rail__btns button {
-  width: 1.8rem;
-  height: 1.8rem;
-  border-radius: 50%;
-  border: 1px solid rgba(200, 120, 140, 0.35);
-  background: rgba(255, 255, 255, 0.9);
-  color: #8a3d52;
-  font-size: 1.05rem;
-  line-height: 1;
-}
-
-.rail__pole {
-  height: 6px;
-  margin: 0 0.15rem;
+.shop__tabs button {
+  flex: 1;
+  height: 1.9rem;
   border-radius: 999px;
-  background: linear-gradient(180deg, #e5c5cd, #c48e9c);
-  box-shadow: 0 4px 10px rgba(120, 50, 70, 0.14);
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.45);
+  color: #b07a84;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-.rail__scroll {
+.shop__tabs button.is-on {
+  background: #fff;
+  color: #7a3d4a;
+  border-color: rgba(255, 100, 150, 0.4);
+}
+
+/* Game-shop side inventory */
+.shop {
   display: flex;
-  gap: 0.35rem;
-  overflow-x: auto;
-  padding: 0.45rem 0.1rem 0.7rem;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0.65rem 0.55rem;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 253, 0.96), rgba(255, 234, 240, 0.92));
+  border: 1px solid rgba(232, 150, 175, 0.45);
+  box-shadow: 0 14px 28px rgba(170, 60, 100, 0.1);
 }
 
-.rail__piece {
-  flex: 0 0 auto;
-  width: 86px;
-  height: 130px;
-  scroll-snap-align: start;
-  position: relative;
+.shop__title {
+  margin: 0 0 0.55rem;
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 1.15rem;
+  color: #7a3d4a;
+}
+
+.shop__grid {
+  list-style: none;
+  margin: 0;
   padding: 0;
-  border: 0;
-  background: transparent;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  overflow: auto;
+  max-height: min(72vh, 700px);
+  align-content: start;
+}
+
+.shop__slot {
+  aspect-ratio: 1;
+  width: 100%;
+  padding: 0.4rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 180, 200, 0.55);
+  background:
+    radial-gradient(circle at 50% 30%, #fff, transparent 60%),
+    linear-gradient(180deg, #fff8fa, #ffdbe6);
+  display: grid;
+  place-items: center;
   cursor: grab;
-  transition: transform 150ms ease;
+  transition: transform 140ms ease, box-shadow 140ms ease;
 }
 
-.rail__piece:hover {
-  transform: translateY(-5px);
+.shop__slot:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(150, 50, 85, 0.14);
 }
 
-.rail__hanger {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 16px;
-  height: 12px;
-  margin-left: -8px;
-  border: 2px solid #b88894;
-  border-bottom: 0;
-  border-radius: 10px 10px 0 0;
-  background: transparent;
-  z-index: 1;
-}
-
-.rail__piece img {
-  position: absolute;
-  left: 50%;
-  top: 14px;
-  transform: translateX(-50%);
-  max-width: 78px;
-  max-height: 112px;
+.shop__slot img {
+  max-width: 88%;
+  max-height: 88%;
   width: auto;
   height: auto;
   object-fit: contain;
-  filter: drop-shadow(0 8px 12px rgba(90, 30, 50, 0.18));
+  filter: drop-shadow(0 5px 8px rgba(90, 30, 50, 0.14));
   pointer-events: none;
 }
 
-/* Fitted pieces on doll */
+/* Fitted pieces */
 .fit {
   position: absolute;
   width: 0;
@@ -2237,6 +2247,7 @@ img {
   display: block;
   width: 100%;
   height: auto;
+  max-width: none;
   pointer-events: none;
   object-fit: contain;
 }
@@ -2334,24 +2345,23 @@ img {
 .fit__h--se { bottom: -5px; right: -5px; cursor: nwse-resize; }
 .fit__h--sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
 
-@media (max-width: 720px) {
+@media (max-width: 900px) {
+  .walkin__layout {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
   .walkin__stage {
-    height: min(52vh, 520px);
-    min-height: 360px;
+    min-height: 420px;
   }
 
-  .walkin__doll {
-    max-width: 58%;
+  .shop__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    max-height: 220px;
   }
 
-  .rail__piece {
-    width: 74px;
-    height: 118px;
-  }
-
-  .rail__piece img {
-    max-width: 68px;
-    max-height: 98px;
+  .walkin__right .shop__title {
+    display: none;
   }
 }
 
