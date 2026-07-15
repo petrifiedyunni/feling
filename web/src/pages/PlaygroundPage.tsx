@@ -13,8 +13,9 @@ import { formatPrice } from "../types";
 import { productImage } from "../productImage";
 
 const products = catalog as Product[];
-const STORAGE_KEY = "feling-playground-v1";
+const STORAGE_KEY = "feling-playground-v2";
 const DOLL = "/playground-doll.png";
+const BASE_W = 200;
 
 type Slot = "dress" | "top" | "bottom" | "shoes" | "bag" | "other";
 
@@ -28,20 +29,18 @@ type Placed = {
   z: number;
 };
 
+type Edge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+
 type Gesture =
-  | {
-      kind: "move";
-      uid: string;
-      ox: number;
-      oy: number;
-    }
+  | { kind: "move"; uid: string; ox: number; oy: number }
   | {
       kind: "scale";
       uid: string;
+      edge: Edge;
       startScale: number;
-      startDist: number;
-      x: number;
-      y: number;
+      startX: number;
+      startY: number;
+      rot: number;
     }
   | {
       kind: "rotate";
@@ -68,17 +67,17 @@ function slotFor(p: Product): Slot {
 function defaultPose(slot: Slot): Pick<Placed, "x" | "y" | "scale" | "rot" | "z"> {
   switch (slot) {
     case "dress":
-      return { x: 50, y: 52, scale: 0.72, rot: 0, z: 20 };
+      return { x: 50, y: 54, scale: 0.85, rot: 0, z: 20 };
     case "top":
-      return { x: 50, y: 38, scale: 0.55, rot: 0, z: 25 };
+      return { x: 50, y: 40, scale: 0.62, rot: 0, z: 25 };
     case "bottom":
-      return { x: 50, y: 62, scale: 0.55, rot: 0, z: 18 };
+      return { x: 50, y: 64, scale: 0.62, rot: 0, z: 18 };
     case "shoes":
-      return { x: 50, y: 88, scale: 0.32, rot: 0, z: 30 };
+      return { x: 50, y: 88, scale: 0.36, rot: 0, z: 30 };
     case "bag":
-      return { x: 72, y: 55, scale: 0.38, rot: -8, z: 28 };
+      return { x: 70, y: 56, scale: 0.42, rot: -6, z: 28 };
     default:
-      return { x: 50, y: 48, scale: 0.45, rot: 0, z: 22 };
+      return { x: 50, y: 50, scale: 0.5, rot: 0, z: 22 };
   }
 }
 
@@ -94,31 +93,24 @@ function loadPlaced(): Placed[] {
 }
 
 function clampScale(n: number) {
-  return Math.min(1.8, Math.max(0.12, n));
+  return Math.min(1.9, Math.max(0.14, n));
 }
 
-function angleAt(
-  stage: DOMRect,
-  xPct: number,
-  yPct: number,
-  clientX: number,
-  clientY: number
-) {
+function angleAt(stage: DOMRect, xPct: number, yPct: number, clientX: number, clientY: number) {
   const cx = stage.left + (xPct / 100) * stage.width;
   const cy = stage.top + (yPct / 100) * stage.height;
   return (Math.atan2(clientY - cy, clientX - cx) * 180) / Math.PI;
 }
 
-function distAt(
-  stage: DOMRect,
-  xPct: number,
-  yPct: number,
-  clientX: number,
-  clientY: number
-) {
-  const cx = stage.left + (xPct / 100) * stage.width;
-  const cy = stage.top + (yPct / 100) * stage.height;
-  return Math.hypot(clientX - cx, clientY - cy) || 1;
+function localDelta(
+  dx: number,
+  dy: number,
+  rotDeg: number
+): { lx: number; ly: number } {
+  const r = (-rotDeg * Math.PI) / 180;
+  const cos = Math.cos(r);
+  const sin = Math.sin(r);
+  return { lx: dx * cos - dy * sin, ly: dx * sin + dy * cos };
 }
 
 export function PlaygroundPage() {
@@ -133,20 +125,18 @@ export function PlaygroundPage() {
   const gestureRef = useRef<Gesture | null>(null);
   const zCounter = useRef(40);
 
-  const byId = useMemo(() => {
-    const m = new Map(products.map((p) => [p.id, p]));
-    return m;
-  }, []);
+  const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), []);
 
   const wardrobe = useMemo(() => {
-    return products.filter((p) => {
-      if (filter === "all") return true;
-      return p.category === filter;
-    });
+    return products.filter((p) => (filter === "all" ? true : p.category === filter));
   }, [filter]);
 
   const active = placed.find((p) => p.uid === activeUid);
   const activeProduct = active ? byId.get(active.productId) : undefined;
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(placed));
+  }, [placed]);
 
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
@@ -156,23 +146,27 @@ export function PlaygroundPage() {
       const rect = stage.getBoundingClientRect();
 
       if (g.kind === "move") {
-        const x = Math.min(
-          95,
-          Math.max(5, ((e.clientX - rect.left) / rect.width) * 100 - g.ox)
-        );
-        const y = Math.min(
-          98,
-          Math.max(5, ((e.clientY - rect.top) / rect.height) * 100 - g.oy)
-        );
+        const x = Math.min(92, Math.max(8, ((e.clientX - rect.left) / rect.width) * 100 - g.ox));
+        const y = Math.min(94, Math.max(8, ((e.clientY - rect.top) / rect.height) * 100 - g.oy));
         setPlaced((prev) => prev.map((p) => (p.uid === g.uid ? { ...p, x, y } : p)));
         return;
       }
+
       if (g.kind === "scale") {
-        const d = distAt(rect, g.x, g.y, e.clientX, e.clientY);
-        const scale = clampScale(g.startScale * (d / g.startDist));
+        const dx = e.clientX - g.startX;
+        const dy = e.clientY - g.startY;
+        const { lx, ly } = localDelta(dx, dy, g.rot);
+        let delta = 0;
+        if (g.edge.includes("e")) delta += lx;
+        if (g.edge.includes("w")) delta -= lx;
+        if (g.edge.includes("s")) delta += ly;
+        if (g.edge.includes("n")) delta -= ly;
+        if (g.edge.length === 2) delta *= 0.7;
+        const scale = clampScale(g.startScale + delta / 180);
         setPlaced((prev) => prev.map((p) => (p.uid === g.uid ? { ...p, scale } : p)));
         return;
       }
+
       if (g.kind === "rotate") {
         const ang = angleAt(rect, g.x, g.y, e.clientX, e.clientY);
         const rot = Math.round(g.startRot + (ang - g.startAngle));
@@ -193,48 +187,14 @@ export function PlaygroundPage() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(placed));
-  }, [placed]);
-
-  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!activeUid) return;
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-
       if (e.key === "Backspace" || e.key === "Delete") {
         e.preventDefault();
         setPlaced((prev) => prev.filter((p) => p.uid !== activeUid));
         setActiveUid(null);
-        return;
-      }
-      if (e.key === "[" || e.key === "-") {
-        e.preventDefault();
-        setPlaced((prev) =>
-          prev.map((p) =>
-            p.uid === activeUid ? { ...p, scale: clampScale(p.scale - 0.05) } : p
-          )
-        );
-      }
-      if (e.key === "]" || e.key === "=" || e.key === "+") {
-        e.preventDefault();
-        setPlaced((prev) =>
-          prev.map((p) =>
-            p.uid === activeUid ? { ...p, scale: clampScale(p.scale + 0.05) } : p
-          )
-        );
-      }
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        setPlaced((prev) =>
-          prev.map((p) => (p.uid === activeUid ? { ...p, rot: p.rot - 5 } : p))
-        );
-      }
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        setPlaced((prev) =>
-          prev.map((p) => (p.uid === activeUid ? { ...p, rot: p.rot + 5 } : p))
-        );
       }
     };
     window.addEventListener("keydown", onKey);
@@ -268,18 +228,6 @@ export function PlaygroundPage() {
     setActiveUid(next.uid);
   };
 
-  const clearAll = () => {
-    setPlaced([]);
-    setActiveUid(null);
-  };
-
-  const patchActive = (patch: Partial<Placed>) => {
-    if (!activeUid) return;
-    setPlaced((prev) =>
-      prev.map((p) => (p.uid === activeUid ? { ...p, ...patch } : p))
-    );
-  };
-
   const onMoveDown = (e: ReactPointerEvent, uid: string) => {
     e.stopPropagation();
     e.preventDefault();
@@ -294,26 +242,23 @@ export function PlaygroundPage() {
       ox: ((e.clientX - rect.left) / rect.width) * 100 - piece.x,
       oy: ((e.clientY - rect.top) / rect.height) * 100 - piece.y,
     };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const onScaleDown = (e: ReactPointerEvent, uid: string) => {
+  const onScaleDown = (e: ReactPointerEvent, uid: string, edge: Edge) => {
     e.stopPropagation();
     e.preventDefault();
-    const stage = stageRef.current;
     const piece = placed.find((p) => p.uid === uid);
-    if (!stage || !piece) return;
+    if (!piece) return;
     bringFront(uid);
-    const rect = stage.getBoundingClientRect();
     gestureRef.current = {
       kind: "scale",
       uid,
+      edge,
       startScale: piece.scale,
-      startDist: distAt(rect, piece.x, piece.y, e.clientX, e.clientY),
-      x: piece.x,
-      y: piece.y,
+      startX: e.clientX,
+      startY: e.clientY,
+      rot: piece.rot,
     };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const onRotateDown = (e: ReactPointerEvent, uid: string) => {
@@ -332,24 +277,16 @@ export function PlaygroundPage() {
       x: piece.x,
       y: piece.y,
     };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const onPieceWheel = (e: ReactWheelEvent, uid: string) => {
     e.preventDefault();
     e.stopPropagation();
     setActiveUid(uid);
-    const delta = e.deltaY > 0 ? -0.045 : 0.045;
+    const delta = e.deltaY > 0 ? -0.04 : 0.04;
     setPlaced((prev) =>
-      prev.map((p) =>
-        p.uid === uid ? { ...p, scale: clampScale(p.scale + delta) } : p
-      )
+      prev.map((p) => (p.uid === uid ? { ...p, scale: clampScale(p.scale + delta) } : p))
     );
-  };
-
-  const onWardrobeDragStart = (e: React.DragEvent, p: Product) => {
-    e.dataTransfer.setData("text/product-id", p.id);
-    e.dataTransfer.effectAllowed = "copy";
   };
 
   const onStageDrop = (e: React.DragEvent) => {
@@ -365,200 +302,181 @@ export function PlaygroundPage() {
     });
   };
 
+  const edges: Edge[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
+
   return (
-    <section className="playground">
-      <header className="playground__head">
-        <p className="playground__kicker">Vanity · Playground</p>
-        <h1>Dress-up box</h1>
-        <p className="playground__lede">
-          Tap a piece for handles — drag to move, corner to resize, top knob to
-          rotate, ✕ to remove.
+    <section className="closet">
+      <div className="closet__room" aria-hidden />
+      <div className="closet__veil" aria-hidden />
+
+      <header className="closet__head">
+        <p className="closet__kicker">Walk-in</p>
+        <h1>Her closet</h1>
+        <p className="closet__lede">
+          Pull something from the wardrobe. Fit it on her in the window.
         </p>
       </header>
 
-      <div className="playground__layout">
-        <div className="playground__stage-wrap">
-          <div className="playground__box">
-            <div className="playground__box-flap playground__box-flap--l" aria-hidden />
-            <div className="playground__box-flap playground__box-flap--r" aria-hidden />
-            <div className="playground__box-top" aria-hidden>
-              <span>feling.</span>
-              <em>collector’s window</em>
+      <div className="closet__layout">
+        <div className="closet__stage-col">
+          <div className="barbie-box">
+            <div className="barbie-box__cardboard" aria-hidden>
+              <span className="barbie-box__brand">feling.</span>
+              <span className="barbie-box__mark">fashion doll</span>
             </div>
             <div
               ref={stageRef}
-              className="playground__stage"
+              className="barbie-box__window"
               onDragOver={(e) => e.preventDefault()}
               onDrop={onStageDrop}
               onClick={() => setActiveUid(null)}
             >
-              <div className="playground__vanity" aria-hidden />
-              <div className="playground__glass" aria-hidden />
-              <div className="playground__sparkles" aria-hidden>
-                <i />
-                <i />
-                <i />
-                <i />
-                <i />
-                <i />
-              </div>
-
-              <img
-                className="playground__doll"
-                src={DOLL}
-                alt="Custom feling doll"
-                draggable={false}
-              />
+              <div className="barbie-box__inner-bg" aria-hidden />
+              <div className="barbie-box__stand" aria-hidden />
+              <img className="barbie-box__doll" src={DOLL} alt="" draggable={false} />
 
               {placed.map((piece) => {
                 const product = byId.get(piece.productId);
                 if (!product) return null;
                 const selected = piece.uid === activeUid;
+                const w = BASE_W * piece.scale;
                 return (
                   <div
                     key={piece.uid}
-                    className={`playground__piece${selected ? " is-active" : ""}`}
-                    style={{
-                      left: `${piece.x}%`,
-                      top: `${piece.y}%`,
-                      zIndex: piece.z,
-                    }}
+                    className={`closet-piece${selected ? " is-active" : ""}`}
+                    style={{ left: `${piece.x}%`, top: `${piece.y}%`, zIndex: piece.z }}
                     onWheel={(e) => onPieceWheel(e, piece.uid)}
                   >
-                    <button
-                      type="button"
-                      className="playground__piece-hit"
+                    <div
+                      className="closet-piece__body"
                       style={{
-                        transform: `translate(-50%, -50%) rotate(${piece.rot}deg) scale(${piece.scale})`,
+                        width: w,
+                        transform: `translate(-50%, -50%) rotate(${piece.rot}deg)`,
                       }}
-                      onPointerDown={(e) => onMoveDown(e, piece.uid)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        bringFront(piece.uid);
-                      }}
-                      aria-label={`${product.title}${selected ? ", selected" : ""}`}
                     >
-                      <img src={productImage(product)} alt="" draggable={false} />
-                    </button>
-
-                    {selected && (
-                      <div
-                        className="playground__chrome"
-                        onClick={(e) => e.stopPropagation()}
-                        onPointerDown={(e) => e.stopPropagation()}
+                      <button
+                        type="button"
+                        className="closet-piece__hit"
+                        onPointerDown={(e) => onMoveDown(e, piece.uid)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          bringFront(piece.uid);
+                        }}
+                        aria-label={product.title}
                       >
-                        <button
-                          type="button"
-                          className="playground__chrome-x"
-                          aria-label={`Remove ${product.title}`}
-                          onClick={() => removePiece(piece.uid)}
+                        <img src={productImage(product)} alt="" draggable={false} />
+                      </button>
+
+                      {selected && (
+                        <div
+                          className="closet-sel"
+                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
                         >
-                          ✕
-                        </button>
-                        <button
-                          type="button"
-                          className="playground__chrome-rot"
-                          aria-label="Drag to rotate"
-                          onPointerDown={(e) => onRotateDown(e, piece.uid)}
-                        >
-                          ↻
-                        </button>
-                        <button
-                          type="button"
-                          className="playground__chrome-scale"
-                          aria-label="Drag to resize"
-                          onPointerDown={(e) => onScaleDown(e, piece.uid)}
-                        />
-                      </div>
-                    )}
+                          <button
+                            type="button"
+                            className="closet-sel__x"
+                            aria-label={`Remove ${product.title}`}
+                            onClick={() => removePiece(piece.uid)}
+                          >
+                            ×
+                          </button>
+                          <button
+                            type="button"
+                            className="closet-sel__rot"
+                            aria-label="Drag to rotate"
+                            onPointerDown={(e) => onRotateDown(e, piece.uid)}
+                          />
+                          {edges.map((edge) => (
+                            <button
+                              key={edge}
+                              type="button"
+                              className={`closet-sel__h closet-sel__h--${edge}`}
+                              aria-label={`Resize ${edge}`}
+                              onPointerDown={(e) => onScaleDown(e, piece.uid, edge)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
-            <p className="playground__box-foot">fit · fluff · obsess</p>
           </div>
 
-          <div className="playground__tools">
-            <button type="button" onClick={clearAll} disabled={!placed.length}>
-              Clear all
+          <div className="closet__bar">
+            <button
+              type="button"
+              onClick={() => {
+                setPlaced([]);
+                setActiveUid(null);
+              }}
+              disabled={!placed.length}
+            >
+              Clear look
             </button>
             <button
               type="button"
               onClick={() => activeUid && removePiece(activeUid)}
               disabled={!active}
             >
-              Remove
+              Remove piece
             </button>
-            <div className="playground__sliders" hidden={!active}>
-              <label>
-                Size
-                <input
-                  type="range"
-                  min={12}
-                  max={180}
-                  value={Math.round((active?.scale ?? 0.5) * 100)}
-                  onChange={(e) =>
-                    patchActive({ scale: clampScale(Number(e.target.value) / 100) })
-                  }
-                />
-              </label>
-              <label>
-                Rotate
-                <input
-                  type="range"
-                  min={-180}
-                  max={180}
-                  value={active?.rot ?? 0}
-                  onChange={(e) => patchActive({ rot: Number(e.target.value) })}
-                />
-              </label>
-            </div>
             {activeProduct && (
-              <Link className="playground__buy" to={`/piece/${activeProduct.slug}`}>
-                View · {formatPrice(activeProduct.price)}
+              <Link className="closet__buy" to={`/piece/${activeProduct.slug}`}>
+                Shop this · {formatPrice(activeProduct.price)}
               </Link>
             )}
           </div>
         </div>
 
-        <aside className="playground__rail">
-          <div className="playground__filters" role="tablist" aria-label="Inventory">
-            {(
-              [
-                ["ready-to-wear", "Clothes"],
-                ["shoes", "Shoes"],
-                ["bags", "Bags"],
-                ["all", "All"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={filter === key}
-                className={filter === key ? "is-on" : undefined}
-                onClick={() => setFilter(key)}
-              >
-                {label}
-              </button>
-            ))}
+        <aside className="wardrobe">
+          <div className="wardrobe__top">
+            <h2>Wardrobe</h2>
+            <div className="wardrobe__tabs" role="tablist">
+              {(
+                [
+                  ["ready-to-wear", "Clothes"],
+                  ["shoes", "Shoes"],
+                  ["bags", "Bags"],
+                  ["all", "All"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  className={filter === key ? "is-on" : undefined}
+                  aria-selected={filter === key}
+                  onClick={() => setFilter(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <ul className="playground__inventory">
+          <div className="wardrobe__rail" aria-hidden />
+          <ul className="wardrobe__hang">
             {wardrobe.map((p) => (
               <li key={p.id}>
                 <button
                   type="button"
-                  className="playground__swatch"
+                  className="wardrobe__item"
                   draggable
-                  onDragStart={(e) => onWardrobeDragStart(e, p)}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/product-id", p.id);
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
                   onClick={() => addPiece(p)}
                   title={p.title}
                 >
-                  <span className="playground__swatch-img">
+                  <span className="wardrobe__hook" aria-hidden />
+                  <span className="wardrobe__garment">
                     <img src={productImage(p)} alt="" />
                   </span>
-                  <span className="playground__swatch-meta">
+                  <span className="wardrobe__label">
                     <em>{p.designer}</em>
                     <span>{p.title}</span>
                   </span>
