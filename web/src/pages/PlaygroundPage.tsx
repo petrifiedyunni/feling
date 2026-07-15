@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-  type WheelEvent as ReactWheelEvent,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import catalog from "../data/catalog.json";
 import type { Product } from "../types";
@@ -13,12 +6,8 @@ import { formatPrice } from "../types";
 import { productImage } from "../productImage";
 
 const products = catalog as Product[];
-const STORAGE_KEY = "feling-playground-v5";
-const DOLL = "/playground-doll.png";
-const DOLL_HEAD = "/playground-doll-head.png";
-const BASE_W = 200;
-
-type Slot = "dress" | "top" | "bottom" | "shoes" | "bag" | "other";
+const STORAGE_KEY = "feling-playground-v11";
+const BASE_W = 220;
 
 type Placed = {
   uid: string;
@@ -31,452 +20,281 @@ type Placed = {
 };
 
 type Edge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+type InvTab = "clothes" | "shoes" | "bags";
 
-type Gesture =
-  | { kind: "move"; uid: string; ox: number; oy: number }
-  | {
-      kind: "scale";
-      uid: string;
-      edge: Edge;
-      startScale: number;
-      startX: number;
-      startY: number;
-      rot: number;
-    }
-  | {
-      kind: "rotate";
-      uid: string;
-      startRot: number;
-      startAngle: number;
-      x: number;
-      y: number;
-    };
+const EDGES: Edge[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
+const TABS: { id: InvTab; label: string }[] = [
+  { id: "clothes", label: "Clothes" },
+  { id: "shoes", label: "Shoes" },
+  { id: "bags", label: "Bags" },
+];
 
-function slotFor(p: Product): Slot {
+function slotPose(p: Product): Pick<Placed, "x" | "y" | "scale" | "rot" | "z"> {
   const t = `${p.title} ${p.category}`.toLowerCase();
-  if (p.category === "shoes" || /heel|shoe|boot|sandal|mule|pump|loafer/.test(t))
-    return "shoes";
-  if (p.category === "bags" || /\bbag\b|tote|clutch|purse/.test(t)) return "bag";
-  if (/dress|gown|slip|romper|jumpsuit|overall/.test(t)) return "dress";
-  if (/skirt|pant|trouser|jean|short|bottom/.test(t)) return "bottom";
-  if (/jacket|blazer|coat|blous|top|shirt|knit|sweater|cardigan|corset|bustier/.test(t))
-    return "top";
-  if (p.category === "ready-to-wear") return "dress";
-  return "other";
+  if (p.category === "shoes" || /heel|shoe|boot|sandal|mule|pump/.test(t))
+    return { x: 48, y: 92, scale: 0.4, rot: 0, z: 30 };
+  if (p.category === "bags" || /\bbag\b|tote|clutch|purse/.test(t))
+    return { x: 64, y: 58, scale: 0.42, rot: -5, z: 28 };
+  if (/skirt|pant|trouser|jean|short/.test(t))
+    return { x: 48, y: 74, scale: 0.64, rot: 0, z: 18 };
+  if (/jacket|blazer|coat|top|shirt|knit|corset|bustier|blouse/.test(t))
+    return { x: 48, y: 52, scale: 0.58, rot: 0, z: 25 };
+  return { x: 48, y: 62, scale: 0.72, rot: 0, z: 20 };
 }
 
-function defaultPose(slot: Slot): Pick<Placed, "x" | "y" | "scale" | "rot" | "z"> {
-  switch (slot) {
-    case "dress":
-      return { x: 50, y: 62, scale: 0.68, rot: 0, z: 20 };
-    case "top":
-      return { x: 50, y: 52, scale: 0.55, rot: 0, z: 25 };
-    case "bottom":
-      return { x: 50, y: 68, scale: 0.58, rot: 0, z: 18 };
-    case "shoes":
-      return { x: 50, y: 90, scale: 0.34, rot: 0, z: 30 };
-    case "bag":
-      return { x: 72, y: 58, scale: 0.38, rot: -6, z: 28 };
-    default:
-      return { x: 50, y: 50, scale: 0.55, rot: 0, z: 22 };
-  }
-}
-
-function loadPlaced(): Placed[] {
+function load(): Placed[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as Placed[];
+    const parsed = raw ? (JSON.parse(raw) as Placed[]) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
-function clampScale(n: number) {
-  return Math.min(1.9, Math.max(0.14, n));
-}
-
-function angleAt(stage: DOMRect, xPct: number, yPct: number, clientX: number, clientY: number) {
-  const cx = stage.left + (xPct / 100) * stage.width;
-  const cy = stage.top + (yPct / 100) * stage.height;
-  return (Math.atan2(clientY - cy, clientX - cx) * 180) / Math.PI;
-}
-
-function localDelta(dx: number, dy: number, rotDeg: number) {
-  const r = (-rotDeg * Math.PI) / 180;
-  return {
-    lx: dx * Math.cos(r) - dy * Math.sin(r),
-    ly: dx * Math.sin(r) + dy * Math.cos(r),
-  };
-}
-
-function ShopPanel({
-  title,
-  items,
-  onPick,
-}: {
-  title: string;
-  items: Product[];
-  onPick: (p: Product) => void;
-}) {
-  return (
-    <aside className="shop">
-      <h2 className="shop__title">{title}</h2>
-      <ul className="shop__grid">
-        {items.map((p) => (
-          <li key={p.id}>
-            <button
-              type="button"
-              className="shop__slot"
-              draggable
-              title={`${p.designer} — ${p.title}`}
-              onDragStart={(e) => {
-                e.dataTransfer.setData("text/product-id", p.id);
-                e.dataTransfer.effectAllowed = "copy";
-              }}
-              onClick={() => onPick(p)}
-            >
-              <img src={productImage(p)} alt={p.title} />
-            </button>
-          </li>
-        ))}
-      </ul>
-    </aside>
-  );
+function clamp(n: number, a: number, b: number) {
+  return Math.min(b, Math.max(a, n));
 }
 
 export function PlaygroundPage() {
   const stageRef = useRef<HTMLDivElement>(null);
+  const nodes = useRef(new Map<string, HTMLDivElement>());
+  const placedRef = useRef<Placed[]>([]);
+  const zRef = useRef(40);
+  const dragging = useRef(false);
+
   const [placed, setPlaced] = useState<Placed[]>(() =>
-    typeof window === "undefined" ? [] : loadPlaced()
+    typeof window === "undefined" ? [] : load()
   );
-  const [activeUid, setActiveUid] = useState<string | null>(null);
-  const [rightTab, setRightTab] = useState<"shoes" | "bags">("shoes");
-  const gestureRef = useRef<Gesture | null>(null);
-  const liveRef = useRef<{ x: number; y: number; scale: number; rot: number } | null>(
-    null
-  );
-  const pieceNodeRef = useRef<Map<string, HTMLDivElement>>(new Map());
-  const zCounter = useRef(40);
+  const [active, setActive] = useState<string | null>(null);
+  const [tab, setTab] = useState<InvTab>("clothes");
+
+  placedRef.current = placed;
 
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), []);
-  const clothes = useMemo(
-    () => products.filter((p) => p.category === "ready-to-wear"),
-    []
-  );
-  const shoes = useMemo(() => products.filter((p) => p.category === "shoes"), []);
-  const bags = useMemo(() => products.filter((p) => p.category === "bags"), []);
-  const rightItems = rightTab === "shoes" ? shoes : bags;
+  const items = useMemo(() => {
+    if (tab === "shoes") return products.filter((p) => p.category === "shoes");
+    if (tab === "bags") return products.filter((p) => p.category === "bags");
+    return products.filter((p) => p.category === "ready-to-wear");
+  }, [tab]);
 
-  const active = placed.find((p) => p.uid === activeUid);
-  const activeProduct = active ? byId.get(active.productId) : undefined;
-
-  const paintPiece = (uid: string, x: number, y: number, scale: number, rot: number) => {
-    const node = pieceNodeRef.current.get(uid);
-    if (!node) return;
-    node.style.left = `${x}%`;
-    node.style.top = `${y}%`;
-    const body = node.querySelector(".fit__body") as HTMLElement | null;
-    if (body) {
-      body.style.width = `${BASE_W * scale}px`;
-      body.style.transform = `translate(-50%, -50%) rotate(${rot}deg)`;
-    }
-  };
+  const activePiece = placed.find((p) => p.uid === active);
+  const activeProduct = activePiece ? byId.get(activePiece.productId) : undefined;
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(placed));
   }, [placed]);
 
-  useEffect(() => {
-    const onMove = (e: PointerEvent) => {
-      const g = gestureRef.current;
-      const stage = stageRef.current;
-      if (!g || !stage) return;
-      const rect = stage.getBoundingClientRect();
-      let next = liveRef.current;
-      if (!next) return;
+  const paint = (uid: string, x: number, y: number, scale: number, rot: number) => {
+    const el = nodes.current.get(uid);
+    if (!el) return;
+    el.style.left = `${x}%`;
+    el.style.top = `${y}%`;
+    el.style.width = `${BASE_W * scale}px`;
+    el.style.transform = `translate(-50%, -50%) rotate(${rot}deg)`;
+  };
 
-      if (g.kind === "move") {
-        next = {
-          ...next,
-          x: Math.min(90, Math.max(10, ((e.clientX - rect.left) / rect.width) * 100 - g.ox)),
-          y: Math.min(92, Math.max(12, ((e.clientY - rect.top) / rect.height) * 100 - g.oy)),
-        };
-      } else if (g.kind === "scale") {
-        const { lx, ly } = localDelta(e.clientX - g.startX, e.clientY - g.startY, g.rot);
+  /** Plain mouse/pointer drag — listeners bound on press, no React until release */
+  const grab = (
+    e: React.MouseEvent | React.PointerEvent,
+    uid: string,
+    mode: "move" | "scale" | "rotate",
+    edge?: Edge
+  ) => {
+    if ("button" in e && e.button !== 0) return;
+    if (dragging.current) return;
+    const t = e.target as HTMLElement;
+    if (mode === "move" && t.closest(".fit__x, .fit__rot, .fit__h")) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const stage = stageRef.current;
+    const piece = placedRef.current.find((p) => p.uid === uid);
+    const el = nodes.current.get(uid);
+    if (!stage || !piece || !el) return;
+
+    dragging.current = true;
+    zRef.current += 1;
+    const z = zRef.current;
+    const rect = stage.getBoundingClientRect();
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    let liveX = piece.x;
+    let liveY = piece.y;
+    let liveScale = piece.scale;
+    let liveRot = piece.rot;
+
+    el.classList.add("is-drag");
+    el.style.zIndex = String(z);
+
+    const cx = rect.left + (piece.x / 100) * rect.width;
+    const cy = rect.top + (piece.y / 100) * rect.height;
+    const startAng = Math.atan2(e.clientY - cy, e.clientX - cx);
+
+    const onMove = (ev: MouseEvent | PointerEvent) => {
+      if (!dragging.current) return;
+      if (mode === "move") {
+        liveX = clamp(piece.x + ((ev.clientX - startClientX) / rect.width) * 100, 5, 95);
+        liveY = clamp(piece.y + ((ev.clientY - startClientY) / rect.height) * 100, 5, 95);
+        paint(uid, liveX, liveY, liveScale, liveRot);
+      } else if (mode === "scale" && edge) {
         let delta = 0;
-        if (g.edge.includes("e")) delta += lx;
-        if (g.edge.includes("w")) delta -= lx;
-        if (g.edge.includes("s")) delta += ly;
-        if (g.edge.includes("n")) delta -= ly;
-        if (g.edge.length === 2) delta *= 0.7;
-        next = { ...next, scale: clampScale(g.startScale + delta / 180) };
-      } else {
-        const ang = angleAt(rect, g.x, g.y, e.clientX, e.clientY);
-        next = { ...next, rot: Math.round(g.startRot + (ang - g.startAngle)) };
+        const dx = ev.clientX - startClientX;
+        const dy = ev.clientY - startClientY;
+        if (edge.includes("e")) delta += dx;
+        if (edge.includes("w")) delta -= dx;
+        if (edge.includes("s")) delta += dy;
+        if (edge.includes("n")) delta -= dy;
+        if (edge.length === 2) delta *= 0.7;
+        liveScale = clamp(piece.scale + delta / 160, 0.15, 1.9);
+        paint(uid, liveX, liveY, liveScale, liveRot);
+      } else if (mode === "rotate") {
+        const ang = Math.atan2(ev.clientY - cy, ev.clientX - cx);
+        liveRot = Math.round(piece.rot + ((ang - startAng) * 180) / Math.PI);
+        paint(uid, liveX, liveY, liveScale, liveRot);
       }
-
-      liveRef.current = next;
-      paintPiece(g.uid, next.x, next.y, next.scale, next.rot);
     };
 
     const onUp = () => {
-      const g = gestureRef.current;
-      const live = liveRef.current;
-      if (g && live) {
-        setPlaced((prev) =>
-          prev.map((p) =>
-            p.uid === g.uid
-              ? { ...p, x: live.x, y: live.y, scale: live.scale, rot: live.rot }
-              : p
-          )
-        );
-      }
-      gestureRef.current = null;
-      liveRef.current = null;
-    };
-
-    window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
-    return () => {
+      dragging.current = false;
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
-    };
-  }, []);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!activeUid) return;
-      if (e.key === "Backspace" || e.key === "Delete") {
-        e.preventDefault();
-        setPlaced((prev) => prev.filter((p) => p.uid !== activeUid));
-        setActiveUid(null);
-      }
+      el.classList.remove("is-drag");
+      paint(uid, liveX, liveY, liveScale, liveRot);
+      setPlaced((prev) =>
+        prev.map((p) =>
+          p.uid === uid
+            ? { ...p, x: liveX, y: liveY, scale: liveScale, rot: liveRot, z }
+            : p
+        )
+      );
+      setActive(uid);
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [activeUid]);
 
-  const bringFront = (uid: string) => {
-    zCounter.current = Math.min(zCounter.current + 1, 90);
-    setPlaced((prev) =>
-      prev.map((p) => (p.uid === uid ? { ...p, z: zCounter.current } : p))
-    );
-    setActiveUid(uid);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
   };
 
-  const removePiece = (uid: string) => {
-    setPlaced((prev) => prev.filter((p) => p.uid !== uid));
-    if (activeUid === uid) setActiveUid(null);
-  };
-
-  const addPiece = (p: Product, at?: { x: number; y: number }) => {
-    zCounter.current += 1;
+  const add = (p: Product) => {
+    zRef.current += 1;
     const next: Placed = {
       uid: `${p.id}-${Date.now()}`,
       productId: p.id,
-      ...defaultPose(slotFor(p)),
-      z: zCounter.current,
-      ...(at ?? {}),
+      ...slotPose(p),
+      z: zRef.current,
     };
     setPlaced((prev) => [...prev, next]);
-    setActiveUid(next.uid);
+    setActive(next.uid);
   };
 
-  const onMoveDown = (e: ReactPointerEvent, uid: string) => {
-    e.stopPropagation();
-    e.preventDefault();
-    const stage = stageRef.current;
-    const piece = placed.find((p) => p.uid === uid);
-    if (!stage || !piece) return;
-    bringFront(uid);
-    const rect = stage.getBoundingClientRect();
-    liveRef.current = {
-      x: piece.x,
-      y: piece.y,
-      scale: piece.scale,
-      rot: piece.rot,
-    };
-    gestureRef.current = {
-      kind: "move",
-      uid,
-      ox: ((e.clientX - rect.left) / rect.width) * 100 - piece.x,
-      oy: ((e.clientY - rect.top) / rect.height) * 100 - piece.y,
-    };
+  const remove = (uid: string) => {
+    setPlaced((prev) => prev.filter((p) => p.uid !== uid));
+    if (active === uid) setActive(null);
   };
-
-  const onScaleDown = (e: ReactPointerEvent, uid: string, edge: Edge) => {
-    e.stopPropagation();
-    e.preventDefault();
-    const piece = placed.find((p) => p.uid === uid);
-    if (!piece) return;
-    bringFront(uid);
-    liveRef.current = {
-      x: piece.x,
-      y: piece.y,
-      scale: piece.scale,
-      rot: piece.rot,
-    };
-    gestureRef.current = {
-      kind: "scale",
-      uid,
-      edge,
-      startScale: piece.scale,
-      startX: e.clientX,
-      startY: e.clientY,
-      rot: piece.rot,
-    };
-  };
-
-  const onRotateDown = (e: ReactPointerEvent, uid: string) => {
-    e.stopPropagation();
-    e.preventDefault();
-    const stage = stageRef.current;
-    const piece = placed.find((p) => p.uid === uid);
-    if (!stage || !piece) return;
-    bringFront(uid);
-    const rect = stage.getBoundingClientRect();
-    liveRef.current = {
-      x: piece.x,
-      y: piece.y,
-      scale: piece.scale,
-      rot: piece.rot,
-    };
-    gestureRef.current = {
-      kind: "rotate",
-      uid,
-      startRot: piece.rot,
-      startAngle: angleAt(rect, piece.x, piece.y, e.clientX, e.clientY),
-      x: piece.x,
-      y: piece.y,
-    };
-  };
-
-  const onPieceWheel = (e: ReactWheelEvent, uid: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setActiveUid(uid);
-    const delta = e.deltaY > 0 ? -0.04 : 0.04;
-    setPlaced((prev) =>
-      prev.map((p) => (p.uid === uid ? { ...p, scale: clampScale(p.scale + delta) } : p))
-    );
-  };
-
-  const onStageDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const id = e.dataTransfer.getData("text/product-id");
-    const product = byId.get(id);
-    const stage = stageRef.current;
-    if (!product || !stage) return;
-    const rect = stage.getBoundingClientRect();
-    addPiece(product, {
-      x: ((e.clientX - rect.left) / rect.width) * 100,
-      y: ((e.clientY - rect.top) / rect.height) * 100,
-    });
-  };
-
-  const edges: Edge[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
 
   return (
     <section className="walkin">
-      <div className="walkin__bg" aria-hidden />
+      <div className="walkin__room" aria-hidden />
 
       <div className="walkin__layout">
-        <ShopPanel title="Clothes" items={clothes} onPick={addPiece} />
-
-        <div className="walkin__center">
+        <div className="walkin__stage-col">
           <div
             ref={stageRef}
             className="walkin__stage"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={onStageDrop}
-            onClick={() => setActiveUid(null)}
+            onPointerDown={(e) => {
+              if (e.target === e.currentTarget) setActive(null);
+            }}
           >
-            {/* Body under clothes; head always on top so outfits can't erase her face */}
-            <div
-              className="walkin__doll walkin__doll--body"
-              role="img"
-              aria-label="You"
-              style={{ backgroundImage: `url(${DOLL}?v=6)` }}
+            {/* Body under clothes */}
+            <img
+              className="walkin__you-body"
+              src="/playground-doll.png"
+              alt=""
+              draggable={false}
+              aria-hidden
             />
 
             {placed.map((piece) => {
               const product = byId.get(piece.productId);
               if (!product) return null;
-              const selected = piece.uid === activeUid;
+              const on = piece.uid === active;
               return (
                 <div
                   key={piece.uid}
                   ref={(el) => {
-                    if (el) pieceNodeRef.current.set(piece.uid, el);
-                    else pieceNodeRef.current.delete(piece.uid);
+                    if (el) nodes.current.set(piece.uid, el);
+                    else nodes.current.delete(piece.uid);
                   }}
-                  className={`fit${selected ? " is-on" : ""}`}
-                  style={{ left: `${piece.x}%`, top: `${piece.y}%`, zIndex: piece.z }}
-                  onWheel={(e) => onPieceWheel(e, piece.uid)}
+                  className={`fit${on ? " is-on" : ""}`}
+                  style={{
+                    left: `${piece.x}%`,
+                    top: `${piece.y}%`,
+                    width: BASE_W * piece.scale,
+                    zIndex: piece.z,
+                    transform: `translate(-50%, -50%) rotate(${piece.rot}deg)`,
+                  }}
+                  onPointerDown={(e) => grab(e, piece.uid, "move")}
+                  onMouseDown={(e) => grab(e, piece.uid, "move")}
                 >
-                  <div
-                    className="fit__body"
-                    style={{
-                      width: BASE_W * piece.scale,
-                      transform: `translate(-50%, -50%) rotate(${piece.rot}deg)`,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="fit__hit"
-                      onPointerDown={(e) => onMoveDown(e, piece.uid)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        bringFront(piece.uid);
-                      }}
-                      aria-label={product.title}
-                    >
-                      <img src={productImage(product)} alt="" draggable={false} />
-                    </button>
-                    {selected && (
-                      <div
-                        className="fit__sel"
-                        onClick={(e) => e.stopPropagation()}
+                  <img
+                    className="fit__img"
+                    src={productImage(product)}
+                    alt=""
+                    draggable={false}
+                  />
+                  {on && (
+                    <div className="fit__sel">
+                      <button
+                        type="button"
+                        className="fit__x"
+                        aria-label="Remove"
                         onPointerDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          remove(piece.uid);
+                        }}
                       >
+                        ×
+                      </button>
+                      <button
+                        type="button"
+                        className="fit__rot"
+                        aria-label="Rotate"
+                        onPointerDown={(e) => grab(e, piece.uid, "rotate")}
+                        onMouseDown={(e) => grab(e, piece.uid, "rotate")}
+                      />
+                      {EDGES.map((edge) => (
                         <button
+                          key={edge}
                           type="button"
-                          className="fit__x"
-                          aria-label="Remove"
-                          onClick={() => removePiece(piece.uid)}
-                        >
-                          ×
-                        </button>
-                        <button
-                          type="button"
-                          className="fit__rot"
-                          aria-label="Rotate"
-                          onPointerDown={(e) => onRotateDown(e, piece.uid)}
+                          className={`fit__h fit__h--${edge}`}
+                          aria-label={`Resize ${edge}`}
+                          onPointerDown={(e) => grab(e, piece.uid, "scale", edge)}
+                          onMouseDown={(e) => grab(e, piece.uid, "scale", edge)}
                         />
-                        {edges.map((edge) => (
-                          <button
-                            key={edge}
-                            type="button"
-                            className={`fit__h fit__h--${edge}`}
-                            aria-label={`Resize ${edge}`}
-                            onPointerDown={(e) => onScaleDown(e, piece.uid, edge)}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
 
-            <div
-              className="walkin__doll walkin__doll--head"
+            {/* Head on top visually; clicks pass through to clothes below */}
+            <img
+              className="walkin__you-head"
+              src="/playground-doll-head.png"
+              alt=""
+              draggable={false}
               aria-hidden
-              style={{ backgroundImage: `url(${DOLL_HEAD}?v=6)` }}
             />
           </div>
 
@@ -486,15 +304,15 @@ export function PlaygroundPage() {
               disabled={!placed.length}
               onClick={() => {
                 setPlaced([]);
-                setActiveUid(null);
+                setActive(null);
               }}
             >
               Undress
             </button>
             <button
               type="button"
-              disabled={!active}
-              onClick={() => activeUid && removePiece(activeUid)}
+              disabled={!activePiece}
+              onClick={() => active && remove(active)}
             >
               Remove
             </button>
@@ -506,29 +324,38 @@ export function PlaygroundPage() {
           </div>
         </div>
 
-        <div className="walkin__right">
-          <div className="shop__tabs">
-            <button
-              type="button"
-              className={rightTab === "shoes" ? "is-on" : undefined}
-              onClick={() => setRightTab("shoes")}
-            >
-              Shoes
-            </button>
-            <button
-              type="button"
-              className={rightTab === "bags" ? "is-on" : undefined}
-              onClick={() => setRightTab("bags")}
-            >
-              Bags
-            </button>
+        <aside className="inv">
+          <div className="inv__chrome">
+            <div className="inv__tabs" role="tablist">
+              {TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t.id}
+                  className={tab === t.id ? "is-on" : undefined}
+                  onClick={() => setTab(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <ShopPanel
-            title={rightTab === "shoes" ? "Shoes" : "Bags"}
-            items={rightItems}
-            onPick={addPiece}
-          />
-        </div>
+          <ul className="inv__grid">
+            {items.map((p) => (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  className="inv__slot"
+                  title={`${p.designer} — ${p.title}`}
+                  onClick={() => add(p)}
+                >
+                  <img src={productImage(p)} alt={p.title} draggable={false} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </aside>
       </div>
     </section>
   );
