@@ -2013,15 +2013,35 @@ img {
 
 /* ─── Walk-in wardrobe playground ──────────────────────────────────────── */
 
+/* One-screen fit — no page scroll; inventory scrolls inside itself */
+.site--playground {
+  height: 100svh;
+  overflow: hidden;
+}
+
+.site--playground .site__main,
+.site--playground main {
+  height: 100%;
+  overflow: hidden;
+}
+
+.site--playground .site-footer {
+  display: none;
+}
+
 .walkin {
   position: relative;
   width: min(1400px, calc(100% - 1.5rem));
+  height: 100svh;
+  max-height: 100svh;
   margin: 0 auto;
   /* Clear the fixed topbar — inventory was sliding under it */
-  padding: 5.5rem 0.5rem 1.25rem;
+  padding: 5.25rem 0.5rem 0.85rem;
   box-sizing: border-box;
   isolation: isolate;
-  min-height: 100svh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .walkin__room {
@@ -2037,19 +2057,24 @@ img {
 .walkin__layout {
   display: grid;
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); /* 60 / 40 */
-  gap: 1.25rem;
+  gap: 1rem;
   align-items: stretch;
-  min-height: calc(100svh - 6.75rem);
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
   width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .walkin__stage-col {
   display: grid;
-  grid-template-rows: 1fr auto;
-  gap: 0.65rem;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0.5rem;
   min-width: 0;
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
   position: relative;
   z-index: 2;
 }
@@ -2061,7 +2086,7 @@ img {
   min-height: 0;
   height: 100%;
   border-radius: 0;
-  overflow: visible;
+  overflow: hidden;
   touch-action: none;
   user-select: none;
   cursor: default;
@@ -2073,16 +2098,17 @@ img {
   display: none;
 }
 
-/* You — fill the stage height */
+/* You — fill the (viewport-locked) stage height */
 .walkin__you-body,
 .walkin__you-head {
   position: absolute;
   left: 48%;
   bottom: 0;
   transform: translateX(-50%);
-  height: 96%;
+  height: 92%;
   width: auto;
-  max-width: min(620px, 92%);
+  max-height: 100%;
+  max-width: min(560px, 85%);
   object-fit: contain;
   object-position: center bottom;
   pointer-events: none !important;
@@ -2197,12 +2223,13 @@ img {
   min-width: 0;
   max-width: 100%;
   height: 100%;
+  max-height: 100%;
   overflow: hidden;
   position: relative;
   z-index: 1;
   box-sizing: border-box;
-  padding: 1rem 1rem 1rem;
-  border-radius: 20px;
+  padding: 0.85rem;
+  border-radius: 18px;
   background:
     linear-gradient(165deg, rgba(255, 252, 253, 0.88), rgba(255, 232, 240, 0.74));
   border: 1px solid rgba(232, 150, 175, 0.42);
@@ -2262,13 +2289,14 @@ img {
   padding: 0 0.2rem 0.35rem 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.65rem;
-  overflow: auto;
+  gap: 0.55rem;
+  overflow-y: auto;
   overflow-x: hidden;
   flex: 1 1 auto;
   min-height: 0;
-  max-height: none;
+  height: 100%;
   align-content: start;
+  overscroll-behavior: contain;
   scrollbar-gutter: stable;
   animation: inv-in 220ms ease;
 }
@@ -2415,19 +2443,42 @@ img {
 .fit__h--sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
 
 @media (max-width: 900px) {
+  .site--playground {
+    height: auto;
+    max-height: none;
+    overflow: auto;
+  }
+
+  .site--playground .site__main,
+  .site--playground main {
+    height: auto;
+    overflow: visible;
+  }
+
   .walkin {
     width: calc(100% - 1rem);
+    height: auto;
+    max-height: none;
     padding: 5.5rem 0.5rem 1.5rem;
-    min-height: auto;
+    overflow: visible;
   }
 
   .walkin__layout {
     grid-template-columns: 1fr;
+    height: auto;
     min-height: 0;
+    overflow: visible;
+  }
+
+  .walkin__stage-col {
+    height: auto;
+    overflow: visible;
   }
 
   .walkin__stage {
-    min-height: 56vh;
+    min-height: 52vh;
+    height: 52vh;
+    overflow: hidden;
   }
 
   .walkin__you-body,
@@ -2438,13 +2489,12 @@ img {
   }
 
   .inv {
-    height: auto;
-    max-height: 42vh;
+    height: 38vh;
+    max-height: 38vh;
   }
 
   .inv__grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    max-height: 34vh;
   }
 }
 

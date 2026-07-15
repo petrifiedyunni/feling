@@ -23,6 +23,7 @@ export function SiteShell() {
 
   const closeSide = () => setSideOpen(false);
   const isHome = location.pathname === "/";
+  const isPlayground = location.pathname === "/playground";
 
   const onBrandClick = (e: MouseEvent<HTMLAnchorElement>) => {
     closeSide();
@@ -34,7 +35,7 @@ export function SiteShell() {
 
   return (
     <div
-      className={`site site--sided ${isHome ? "site--home" : "site--browse"}`}
+      className={`site site--sided ${isHome ? "site--home" : "site--browse"}${isPlayground ? " site--playground" : ""}`}
     >
       <aside className={`side ${sideOpen ? "side--open" : ""}`}>
         <nav className="side__nav" aria-label="Primary">
