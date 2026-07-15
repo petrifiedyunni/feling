@@ -154,6 +154,10 @@ export function PlaygroundPage() {
   const [activeUid, setActiveUid] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<"shoes" | "bags">("shoes");
   const gestureRef = useRef<Gesture | null>(null);
+  const liveRef = useRef<{ x: number; y: number; scale: number; rot: number } | null>(
+    null
+  );
+  const pieceNodeRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const zCounter = useRef(40);
 
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), []);
@@ -168,6 +172,18 @@ export function PlaygroundPage() {
   const active = placed.find((p) => p.uid === activeUid);
   const activeProduct = active ? byId.get(active.productId) : undefined;
 
+  const paintPiece = (uid: string, x: number, y: number, scale: number, rot: number) => {
+    const node = pieceNodeRef.current.get(uid);
+    if (!node) return;
+    node.style.left = `${x}%`;
+    node.style.top = `${y}%`;
+    const body = node.querySelector(".fit__body") as HTMLElement | null;
+    if (body) {
+      body.style.width = `${BASE_W * scale}px`;
+      body.style.transform = `translate(-50%, -50%) rotate(${rot}deg)`;
+    }
+  };
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(placed));
   }, [placed]);
@@ -178,13 +194,16 @@ export function PlaygroundPage() {
       const stage = stageRef.current;
       if (!g || !stage) return;
       const rect = stage.getBoundingClientRect();
+      let next = liveRef.current;
+      if (!next) return;
+
       if (g.kind === "move") {
-        const x = Math.min(90, Math.max(10, ((e.clientX - rect.left) / rect.width) * 100 - g.ox));
-        const y = Math.min(92, Math.max(12, ((e.clientY - rect.top) / rect.height) * 100 - g.oy));
-        setPlaced((prev) => prev.map((p) => (p.uid === g.uid ? { ...p, x, y } : p)));
-        return;
-      }
-      if (g.kind === "scale") {
+        next = {
+          ...next,
+          x: Math.min(90, Math.max(10, ((e.clientX - rect.left) / rect.width) * 100 - g.ox)),
+          y: Math.min(92, Math.max(12, ((e.clientY - rect.top) / rect.height) * 100 - g.oy)),
+        };
+      } else if (g.kind === "scale") {
         const { lx, ly } = localDelta(e.clientX - g.startX, e.clientY - g.startY, g.rot);
         let delta = 0;
         if (g.edge.includes("e")) delta += lx;
@@ -192,18 +211,33 @@ export function PlaygroundPage() {
         if (g.edge.includes("s")) delta += ly;
         if (g.edge.includes("n")) delta -= ly;
         if (g.edge.length === 2) delta *= 0.7;
-        const scale = clampScale(g.startScale + delta / 180);
-        setPlaced((prev) => prev.map((p) => (p.uid === g.uid ? { ...p, scale } : p)));
-        return;
+        next = { ...next, scale: clampScale(g.startScale + delta / 180) };
+      } else {
+        const ang = angleAt(rect, g.x, g.y, e.clientX, e.clientY);
+        next = { ...next, rot: Math.round(g.startRot + (ang - g.startAngle)) };
       }
-      const ang = angleAt(rect, g.x, g.y, e.clientX, e.clientY);
-      const rot = Math.round(g.startRot + (ang - g.startAngle));
-      setPlaced((prev) => prev.map((p) => (p.uid === g.uid ? { ...p, rot } : p)));
+
+      liveRef.current = next;
+      paintPiece(g.uid, next.x, next.y, next.scale, next.rot);
     };
+
     const onUp = () => {
+      const g = gestureRef.current;
+      const live = liveRef.current;
+      if (g && live) {
+        setPlaced((prev) =>
+          prev.map((p) =>
+            p.uid === g.uid
+              ? { ...p, x: live.x, y: live.y, scale: live.scale, rot: live.rot }
+              : p
+          )
+        );
+      }
       gestureRef.current = null;
+      liveRef.current = null;
     };
-    window.addEventListener("pointermove", onMove);
+
+    window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
     return () => {
@@ -260,6 +294,12 @@ export function PlaygroundPage() {
     if (!stage || !piece) return;
     bringFront(uid);
     const rect = stage.getBoundingClientRect();
+    liveRef.current = {
+      x: piece.x,
+      y: piece.y,
+      scale: piece.scale,
+      rot: piece.rot,
+    };
     gestureRef.current = {
       kind: "move",
       uid,
@@ -274,6 +314,12 @@ export function PlaygroundPage() {
     const piece = placed.find((p) => p.uid === uid);
     if (!piece) return;
     bringFront(uid);
+    liveRef.current = {
+      x: piece.x,
+      y: piece.y,
+      scale: piece.scale,
+      rot: piece.rot,
+    };
     gestureRef.current = {
       kind: "scale",
       uid,
@@ -293,6 +339,12 @@ export function PlaygroundPage() {
     if (!stage || !piece) return;
     bringFront(uid);
     const rect = stage.getBoundingClientRect();
+    liveRef.current = {
+      x: piece.x,
+      y: piece.y,
+      scale: piece.scale,
+      rot: piece.rot,
+    };
     gestureRef.current = {
       kind: "rotate",
       uid,
@@ -343,13 +395,6 @@ export function PlaygroundPage() {
             onDrop={onStageDrop}
             onClick={() => setActiveUid(null)}
           >
-            <div className="walkin__stand" aria-hidden>
-              <span className="walkin__stand-glow" />
-              <span className="walkin__stand-rod" />
-              <span className="walkin__stand-disc" />
-              <span className="walkin__stand-base" />
-            </div>
-
             {/* Body under clothes; head always on top so outfits can't erase her face */}
             <div
               className="walkin__doll walkin__doll--body"
@@ -365,6 +410,10 @@ export function PlaygroundPage() {
               return (
                 <div
                   key={piece.uid}
+                  ref={(el) => {
+                    if (el) pieceNodeRef.current.set(piece.uid, el);
+                    else pieceNodeRef.current.delete(piece.uid);
+                  }}
                   className={`fit${selected ? " is-on" : ""}`}
                   style={{ left: `${piece.x}%`, top: `${piece.y}%`, zIndex: piece.z }}
                   onWheel={(e) => onPieceWheel(e, piece.uid)}
