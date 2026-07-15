@@ -347,7 +347,7 @@ export function PlaygroundPage() {
               className="walkin__doll"
               role="img"
               aria-label="You"
-              style={{ backgroundImage: `url(${DOLL}?v=3)` }}
+              style={{ backgroundImage: `url(${DOLL}?v=4)` }}
             />
 
             {placed.map((piece) => {
