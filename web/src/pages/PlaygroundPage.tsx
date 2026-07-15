@@ -21,12 +21,36 @@ type Slot = "dress" | "top" | "bottom" | "shoes" | "bag" | "other";
 type Placed = {
   uid: string;
   productId: string;
-  x: number; // % of stage width (center)
-  y: number; // % of stage height (center)
+  x: number;
+  y: number;
   scale: number;
   rot: number;
   z: number;
 };
+
+type Gesture =
+  | {
+      kind: "move";
+      uid: string;
+      ox: number;
+      oy: number;
+    }
+  | {
+      kind: "scale";
+      uid: string;
+      startScale: number;
+      startDist: number;
+      x: number;
+      y: number;
+    }
+  | {
+      kind: "rotate";
+      uid: string;
+      startRot: number;
+      startAngle: number;
+      x: number;
+      y: number;
+    };
 
 function slotFor(p: Product): Slot {
   const t = `${p.title} ${p.category}`.toLowerCase();
@@ -69,6 +93,34 @@ function loadPlaced(): Placed[] {
   }
 }
 
+function clampScale(n: number) {
+  return Math.min(1.8, Math.max(0.12, n));
+}
+
+function angleAt(
+  stage: DOMRect,
+  xPct: number,
+  yPct: number,
+  clientX: number,
+  clientY: number
+) {
+  const cx = stage.left + (xPct / 100) * stage.width;
+  const cy = stage.top + (yPct / 100) * stage.height;
+  return (Math.atan2(clientY - cy, clientX - cx) * 180) / Math.PI;
+}
+
+function distAt(
+  stage: DOMRect,
+  xPct: number,
+  yPct: number,
+  clientX: number,
+  clientY: number
+) {
+  const cx = stage.left + (xPct / 100) * stage.width;
+  const cy = stage.top + (yPct / 100) * stage.height;
+  return Math.hypot(clientX - cx, clientY - cy) || 1;
+}
+
 export function PlaygroundPage() {
   const stageRef = useRef<HTMLDivElement>(null);
   const [filter, setFilter] = useState<"all" | "ready-to-wear" | "shoes" | "bags">(
@@ -78,13 +130,7 @@ export function PlaygroundPage() {
     typeof window === "undefined" ? [] : loadPlaced()
   );
   const [activeUid, setActiveUid] = useState<string | null>(null);
-  const dragRef = useRef<{
-    uid: string;
-    ox: number;
-    oy: number;
-    startX: number;
-    startY: number;
-  } | null>(null);
+  const gestureRef = useRef<Gesture | null>(null);
   const zCounter = useRef(40);
 
   const byId = useMemo(() => {
@@ -99,9 +145,114 @@ export function PlaygroundPage() {
     });
   }, [filter]);
 
+  const active = placed.find((p) => p.uid === activeUid);
+  const activeProduct = active ? byId.get(active.productId) : undefined;
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      const g = gestureRef.current;
+      const stage = stageRef.current;
+      if (!g || !stage) return;
+      const rect = stage.getBoundingClientRect();
+
+      if (g.kind === "move") {
+        const x = Math.min(
+          95,
+          Math.max(5, ((e.clientX - rect.left) / rect.width) * 100 - g.ox)
+        );
+        const y = Math.min(
+          98,
+          Math.max(5, ((e.clientY - rect.top) / rect.height) * 100 - g.oy)
+        );
+        setPlaced((prev) => prev.map((p) => (p.uid === g.uid ? { ...p, x, y } : p)));
+        return;
+      }
+      if (g.kind === "scale") {
+        const d = distAt(rect, g.x, g.y, e.clientX, e.clientY);
+        const scale = clampScale(g.startScale * (d / g.startDist));
+        setPlaced((prev) => prev.map((p) => (p.uid === g.uid ? { ...p, scale } : p)));
+        return;
+      }
+      if (g.kind === "rotate") {
+        const ang = angleAt(rect, g.x, g.y, e.clientX, e.clientY);
+        const rot = Math.round(g.startRot + (ang - g.startAngle));
+        setPlaced((prev) => prev.map((p) => (p.uid === g.uid ? { ...p, rot } : p)));
+      }
+    };
+    const onUp = () => {
+      gestureRef.current = null;
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, []);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(placed));
   }, [placed]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!activeUid) return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+      if (e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+        setPlaced((prev) => prev.filter((p) => p.uid !== activeUid));
+        setActiveUid(null);
+        return;
+      }
+      if (e.key === "[" || e.key === "-") {
+        e.preventDefault();
+        setPlaced((prev) =>
+          prev.map((p) =>
+            p.uid === activeUid ? { ...p, scale: clampScale(p.scale - 0.05) } : p
+          )
+        );
+      }
+      if (e.key === "]" || e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        setPlaced((prev) =>
+          prev.map((p) =>
+            p.uid === activeUid ? { ...p, scale: clampScale(p.scale + 0.05) } : p
+          )
+        );
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setPlaced((prev) =>
+          prev.map((p) => (p.uid === activeUid ? { ...p, rot: p.rot - 5 } : p))
+        );
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setPlaced((prev) =>
+          prev.map((p) => (p.uid === activeUid ? { ...p, rot: p.rot + 5 } : p))
+        );
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [activeUid]);
+
+  const bringFront = (uid: string) => {
+    zCounter.current += 1;
+    setPlaced((prev) =>
+      prev.map((p) => (p.uid === uid ? { ...p, z: zCounter.current } : p))
+    );
+    setActiveUid(uid);
+  };
+
+  const removePiece = (uid: string) => {
+    setPlaced((prev) => prev.filter((p) => p.uid !== uid));
+    if (activeUid === uid) setActiveUid(null);
+  };
 
   const addPiece = (p: Product, at?: { x: number; y: number }) => {
     const pose = defaultPose(slotFor(p));
@@ -122,69 +273,76 @@ export function PlaygroundPage() {
     setActiveUid(null);
   };
 
-  const removeActive = () => {
+  const patchActive = (patch: Partial<Placed>) => {
     if (!activeUid) return;
-    setPlaced((prev) => prev.filter((p) => p.uid !== activeUid));
-    setActiveUid(null);
+    setPlaced((prev) =>
+      prev.map((p) => (p.uid === activeUid ? { ...p, ...patch } : p))
+    );
   };
 
-  const active = placed.find((p) => p.uid === activeUid);
-
-  const onStagePointerDown = (e: ReactPointerEvent, uid: string) => {
+  const onMoveDown = (e: ReactPointerEvent, uid: string) => {
     e.stopPropagation();
     e.preventDefault();
     const stage = stageRef.current;
-    if (!stage) return;
     const piece = placed.find((p) => p.uid === uid);
-    if (!piece) return;
-    zCounter.current += 1;
-    setPlaced((prev) =>
-      prev.map((p) => (p.uid === uid ? { ...p, z: zCounter.current } : p))
-    );
-    setActiveUid(uid);
+    if (!stage || !piece) return;
+    bringFront(uid);
     const rect = stage.getBoundingClientRect();
-    dragRef.current = {
+    gestureRef.current = {
+      kind: "move",
       uid,
       ox: ((e.clientX - rect.left) / rect.width) * 100 - piece.x,
       oy: ((e.clientY - rect.top) / rect.height) * 100 - piece.y,
-      startX: e.clientX,
-      startY: e.clientY,
     };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const onStagePointerMove = (e: ReactPointerEvent) => {
-    const drag = dragRef.current;
+  const onScaleDown = (e: ReactPointerEvent, uid: string) => {
+    e.stopPropagation();
+    e.preventDefault();
     const stage = stageRef.current;
-    if (!drag || !stage) return;
+    const piece = placed.find((p) => p.uid === uid);
+    if (!stage || !piece) return;
+    bringFront(uid);
     const rect = stage.getBoundingClientRect();
-    const x = Math.min(
-      95,
-      Math.max(5, ((e.clientX - rect.left) / rect.width) * 100 - drag.ox)
-    );
-    const y = Math.min(
-      98,
-      Math.max(5, ((e.clientY - rect.top) / rect.height) * 100 - drag.oy)
-    );
-    setPlaced((prev) =>
-      prev.map((p) => (p.uid === drag.uid ? { ...p, x, y } : p))
-    );
+    gestureRef.current = {
+      kind: "scale",
+      uid,
+      startScale: piece.scale,
+      startDist: distAt(rect, piece.x, piece.y, e.clientX, e.clientY),
+      x: piece.x,
+      y: piece.y,
+    };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const onStagePointerUp = () => {
-    dragRef.current = null;
+  const onRotateDown = (e: ReactPointerEvent, uid: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const stage = stageRef.current;
+    const piece = placed.find((p) => p.uid === uid);
+    if (!stage || !piece) return;
+    bringFront(uid);
+    const rect = stage.getBoundingClientRect();
+    gestureRef.current = {
+      kind: "rotate",
+      uid,
+      startRot: piece.rot,
+      startAngle: angleAt(rect, piece.x, piece.y, e.clientX, e.clientY),
+      x: piece.x,
+      y: piece.y,
+    };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const onPieceWheel = (e: ReactWheelEvent, uid: string) => {
     e.preventDefault();
     e.stopPropagation();
     setActiveUid(uid);
-    const delta = e.deltaY > 0 ? -0.04 : 0.04;
+    const delta = e.deltaY > 0 ? -0.045 : 0.045;
     setPlaced((prev) =>
       prev.map((p) =>
-        p.uid === uid
-          ? { ...p, scale: Math.min(1.6, Math.max(0.15, p.scale + delta)) }
-          : p
+        p.uid === uid ? { ...p, scale: clampScale(p.scale + delta) } : p
       )
     );
   };
@@ -207,37 +365,20 @@ export function PlaygroundPage() {
     });
   };
 
-  const nudgeScale = (d: number) => {
-    if (!activeUid) return;
-    setPlaced((prev) =>
-      prev.map((p) =>
-        p.uid === activeUid
-          ? { ...p, scale: Math.min(1.6, Math.max(0.15, p.scale + d)) }
-          : p
-      )
-    );
-  };
-
-  const nudgeRot = (d: number) => {
-    if (!activeUid) return;
-    setPlaced((prev) =>
-      prev.map((p) => (p.uid === activeUid ? { ...p, rot: p.rot + d } : p))
-    );
-  };
-
   return (
     <section className="playground">
       <header className="playground__head">
         <p className="playground__kicker">Vanity · Playground</p>
         <h1>Dress-up box</h1>
         <p className="playground__lede">
-          Open the window, drag archive pieces onto her, fuss until she’s perfect.
+          Tap a piece for handles — drag to move, corner to resize, top knob to
+          rotate, ✕ to remove.
         </p>
       </header>
 
       <div className="playground__layout">
         <div className="playground__stage-wrap">
-          <div className="playground__box" aria-hidden={false}>
+          <div className="playground__box">
             <div className="playground__box-flap playground__box-flap--l" aria-hidden />
             <div className="playground__box-flap playground__box-flap--r" aria-hidden />
             <div className="playground__box-top" aria-hidden>
@@ -249,15 +390,17 @@ export function PlaygroundPage() {
               className="playground__stage"
               onDragOver={(e) => e.preventDefault()}
               onDrop={onStageDrop}
-              onPointerMove={onStagePointerMove}
-              onPointerUp={onStagePointerUp}
-              onPointerCancel={onStagePointerUp}
               onClick={() => setActiveUid(null)}
             >
               <div className="playground__vanity" aria-hidden />
               <div className="playground__glass" aria-hidden />
               <div className="playground__sparkles" aria-hidden>
-                <i /><i /><i /><i /><i /><i />
+                <i />
+                <i />
+                <i />
+                <i />
+                <i />
+                <i />
               </div>
 
               <img
@@ -272,27 +415,63 @@ export function PlaygroundPage() {
                 if (!product) return null;
                 const selected = piece.uid === activeUid;
                 return (
-                  <button
+                  <div
                     key={piece.uid}
-                    type="button"
                     className={`playground__piece${selected ? " is-active" : ""}`}
                     style={{
                       left: `${piece.x}%`,
                       top: `${piece.y}%`,
                       zIndex: piece.z,
-                      transform: `translate(-50%, -50%) rotate(${piece.rot}deg) scale(${piece.scale})`,
                     }}
-                    onPointerDown={(e) => onStagePointerDown(e, piece.uid)}
                     onWheel={(e) => onPieceWheel(e, piece.uid)}
-                    onDoubleClick={(e) => {
-                      e.stopPropagation();
-                      setPlaced((prev) => prev.filter((p) => p.uid !== piece.uid));
-                      if (activeUid === piece.uid) setActiveUid(null);
-                    }}
-                    aria-label={`${product.title} on doll`}
                   >
-                    <img src={productImage(product)} alt="" draggable={false} />
-                  </button>
+                    <button
+                      type="button"
+                      className="playground__piece-hit"
+                      style={{
+                        transform: `translate(-50%, -50%) rotate(${piece.rot}deg) scale(${piece.scale})`,
+                      }}
+                      onPointerDown={(e) => onMoveDown(e, piece.uid)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        bringFront(piece.uid);
+                      }}
+                      aria-label={`${product.title}${selected ? ", selected" : ""}`}
+                    >
+                      <img src={productImage(product)} alt="" draggable={false} />
+                    </button>
+
+                    {selected && (
+                      <div
+                        className="playground__chrome"
+                        onClick={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          className="playground__chrome-x"
+                          aria-label={`Remove ${product.title}`}
+                          onClick={() => removePiece(piece.uid)}
+                        >
+                          ✕
+                        </button>
+                        <button
+                          type="button"
+                          className="playground__chrome-rot"
+                          aria-label="Drag to rotate"
+                          onPointerDown={(e) => onRotateDown(e, piece.uid)}
+                        >
+                          ↻
+                        </button>
+                        <button
+                          type="button"
+                          className="playground__chrome-scale"
+                          aria-label="Drag to resize"
+                          onPointerDown={(e) => onScaleDown(e, piece.uid)}
+                        />
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -301,29 +480,42 @@ export function PlaygroundPage() {
 
           <div className="playground__tools">
             <button type="button" onClick={clearAll} disabled={!placed.length}>
-              Undress
+              Clear all
             </button>
-            <button type="button" onClick={removeActive} disabled={!active}>
+            <button
+              type="button"
+              onClick={() => activeUid && removePiece(activeUid)}
+              disabled={!active}
+            >
               Remove
             </button>
-            <button type="button" onClick={() => nudgeScale(-0.06)} disabled={!active}>
-              −
-            </button>
-            <button type="button" onClick={() => nudgeScale(0.06)} disabled={!active}>
-              +
-            </button>
-            <button type="button" onClick={() => nudgeRot(-8)} disabled={!active}>
-              ↶
-            </button>
-            <button type="button" onClick={() => nudgeRot(8)} disabled={!active}>
-              ↷
-            </button>
-            {active && byId.get(active.productId) && (
-              <Link
-                className="playground__buy"
-                to={`/piece/${byId.get(active.productId)!.slug}`}
-              >
-                View piece · {formatPrice(byId.get(active.productId)!.price)}
+            <div className="playground__sliders" hidden={!active}>
+              <label>
+                Size
+                <input
+                  type="range"
+                  min={12}
+                  max={180}
+                  value={Math.round((active?.scale ?? 0.5) * 100)}
+                  onChange={(e) =>
+                    patchActive({ scale: clampScale(Number(e.target.value) / 100) })
+                  }
+                />
+              </label>
+              <label>
+                Rotate
+                <input
+                  type="range"
+                  min={-180}
+                  max={180}
+                  value={active?.rot ?? 0}
+                  onChange={(e) => patchActive({ rot: Number(e.target.value) })}
+                />
+              </label>
+            </div>
+            {activeProduct && (
+              <Link className="playground__buy" to={`/piece/${activeProduct.slug}`}>
+                View · {formatPrice(activeProduct.price)}
               </Link>
             )}
           </div>
