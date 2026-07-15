@@ -343,6 +343,13 @@ export function PlaygroundPage() {
             onDrop={onStageDrop}
             onClick={() => setActiveUid(null)}
           >
+            <div className="walkin__stand" aria-hidden>
+              <span className="walkin__stand-glow" />
+              <span className="walkin__stand-rod" />
+              <span className="walkin__stand-disc" />
+              <span className="walkin__stand-base" />
+            </div>
+
             {/* Body under clothes; head always on top so outfits can't erase her face */}
             <div
               className="walkin__doll walkin__doll--body"

@@ -2063,29 +2063,100 @@ img {
   user-select: none;
 }
 
-/* Doll as sized box + background-image so global img{max-width:100%} can't zero it */
+/* Wedding / display doll stand */
+.walkin__stand {
+  position: absolute;
+  left: 50%;
+  bottom: 3.5%;
+  transform: translateX(-50%);
+  width: clamp(140px, 32%, 260px);
+  height: 18%;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.walkin__stand-glow {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 120%;
+  height: 55%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(255, 255, 255, 0.55), transparent 68%);
+}
+
+.walkin__stand-rod {
+  position: absolute;
+  left: 50%;
+  bottom: 28%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 62%;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(190, 190, 200, 0.35),
+    rgba(255, 255, 255, 0.95) 45%,
+    rgba(170, 170, 185, 0.55)
+  );
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+.walkin__stand-disc {
+  position: absolute;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%);
+  width: 42%;
+  height: 18%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 40% 35%, rgba(255, 255, 255, 0.85), rgba(230, 230, 240, 0.35) 55%, rgba(180, 180, 195, 0.25));
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    0 4px 10px rgba(80, 40, 60, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.walkin__stand-base {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%) scaleY(0.45);
+  width: 78%;
+  height: 42%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(255, 255, 255, 0.75), rgba(240, 210, 220, 0.35) 50%, rgba(180, 120, 140, 0.2));
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 10px 22px rgba(90, 40, 60, 0.18),
+    inset 0 2px 6px rgba(255, 255, 255, 0.65);
+}
+
+/* Doll perched on the stand */
 .walkin__doll {
   position: absolute;
   left: 50%;
-  bottom: 2%;
+  bottom: 11%;
   transform: translateX(-50%);
   width: clamp(160px, 38%, 300px);
-  height: 92%;
+  height: 82%;
   max-width: none;
   background-repeat: no-repeat;
   background-position: center bottom;
   background-size: contain;
   pointer-events: none;
-  filter: drop-shadow(0 18px 26px rgba(80, 30, 50, 0.28));
+  filter: drop-shadow(0 14px 20px rgba(80, 30, 50, 0.22));
 }
 
 .walkin__doll--body {
-  z-index: 1;
+  z-index: 3;
 }
 
 .walkin__doll--head {
   z-index: 999;
-  /* softer so neckline of clothes can peek under chin */
   filter: drop-shadow(0 4px 8px rgba(120, 40, 70, 0.1));
 }
 
