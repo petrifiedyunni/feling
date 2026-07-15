@@ -2011,164 +2011,290 @@ img {
   margin: 0 auto;
 }
 
-/* ─── Closet + Barbie box playground ───────────────────────────────────── */
+/* ─── Walk-in wardrobe playground ──────────────────────────────────────── */
 
-.closet {
+.walkin {
   position: relative;
-  width: min(1220px, calc(100% - 1.25rem));
+  width: min(1120px, calc(100% - 1rem));
   margin: 0 auto;
-  padding: 0.85rem 0 4.5rem;
+  padding: 0.5rem 0 3.5rem;
   isolation: isolate;
 }
 
-.closet__room {
-  position: fixed;
-  inset: 0;
-  z-index: -2;
-  background:
-    linear-gradient(180deg, rgba(255, 246, 248, 0.55), rgba(251, 236, 240, 0.82)),
-    url("/playground-closet-bg.png") center / cover no-repeat;
-  pointer-events: none;
-}
-
-.closet__veil {
+.walkin__room {
   position: fixed;
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(ellipse at 50% 20%, rgba(255, 255, 255, 0.35), transparent 50%),
-    linear-gradient(90deg, rgba(251, 246, 243, 0.55), transparent 18%, transparent 82%, rgba(251, 246, 243, 0.55));
+    linear-gradient(180deg, rgba(255, 248, 250, 0.72) 0%, rgba(252, 236, 241, 0.88) 55%, rgba(246, 220, 228, 0.92) 100%),
+    url("/playground-closet-bg.png") center / cover no-repeat;
   pointer-events: none;
 }
 
-.closet__head {
-  max-width: 28rem;
-  margin-bottom: 1.1rem;
-}
-
-.closet__kicker {
-  margin: 0 0 0.25rem;
-  font-size: 0.65rem;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: #c07a88;
-}
-
-.closet__head h1 {
-  margin: 0 0 0.3rem;
-  font-family: var(--display);
-  font-style: italic;
-  font-weight: 500;
-  font-size: clamp(2rem, 4.8vw, 3rem);
-  color: #7a3d4a;
-  line-height: 1.05;
-}
-
-.closet__lede {
-  margin: 0;
-  color: #9a6a74;
-  font-weight: 300;
-  font-size: 0.95rem;
-}
-
-.closet__layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.78fr);
-  gap: 1.25rem;
-  align-items: start;
-}
-
-.closet__stage-col {
-  position: sticky;
-  top: 4.1rem;
-}
-
-/* Classic doll retail box */
-.barbie-box {
+.walkin__frame {
   position: relative;
-  padding: 0.85rem 0.85rem 1rem;
-  border-radius: 6px;
-  background:
-    linear-gradient(160deg, #ff4f93 0%, #ff2d78 42%, #e81863 100%);
-  box-shadow:
-    0 30px 60px rgba(200, 30, 90, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
-.barbie-box__cardboard {
+.walkin__head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: 0.15rem 0.35rem 0.65rem;
-  color: #fff;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  padding: 0 0.15rem;
 }
 
-.barbie-box__brand {
+.walkin__head p {
+  margin: 0;
+  font-size: 0.62rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #b07a84;
+}
+
+.walkin__head h1 {
+  margin: 0;
   font-family: var(--display);
   font-style: italic;
-  font-size: 1.55rem;
-  letter-spacing: 0.01em;
-  text-shadow: 0 1px 0 rgba(120, 0, 50, 0.25);
+  font-weight: 500;
+  font-size: 1.65rem;
+  color: #7a3d4a;
 }
 
-.barbie-box__mark {
-  font-size: 0.58rem;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  opacity: 0.9;
+.walkin__scene {
+  display: grid;
+  grid-template-rows: auto minmax(340px, 52vh) auto;
+  gap: 0.85rem;
 }
 
-.barbie-box__window {
+.walkin__shelves--bottom {
+  display: grid;
+  gap: 0.75rem;
+}
+
+/* Horizontal shelf with hanging garments */
+.shelf {
   position: relative;
-  height: min(68vh, 680px);
-  border-radius: 3px;
-  overflow: hidden;
-  background: #ffe6ef;
-  border: 4px solid rgba(255, 255, 255, 0.92);
+  padding: 0.35rem 0 0.15rem;
+}
+
+.shelf__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.2rem;
+  padding: 0 0.2rem;
+}
+
+.shelf__head h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 1.15rem;
+  color: #7a3d4a;
+}
+
+.shelf__nudge {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.shelf__nudge button {
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 50%;
+  border: 1px solid rgba(200, 120, 140, 0.35);
+  background: rgba(255, 255, 255, 0.85);
+  color: #8a3d52;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.shelf__ledge {
+  height: 7px;
+  margin: 0 0.1rem 0.15rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #e2c4cc, #c99aa6 55%, #b87f8f);
+  box-shadow: 0 5px 10px rgba(120, 50, 70, 0.12);
+}
+
+.shelf__track {
+  display: flex;
+  gap: 0.85rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  padding: 0.35rem 0.25rem 0.65rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.shelf__track::-webkit-scrollbar {
+  height: 4px;
+}
+
+.shelf__track::-webkit-scrollbar-thumb {
+  background: rgba(180, 100, 120, 0.35);
+  border-radius: 999px;
+}
+
+.shelf__item {
+  flex: 0 0 auto;
+  width: 92px;
+  scroll-snap-align: start;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0;
+  text-align: center;
+  transition: transform 160ms ease;
+}
+
+.shelf__item:hover {
+  transform: translateY(-4px);
+}
+
+.shelf__hook {
+  display: block;
+  width: 12px;
+  height: 14px;
+  margin: 0 auto -2px;
+  border: 2px solid #b88894;
+  border-bottom: 0;
+  border-radius: 9px 9px 0 0;
+}
+
+.shelf__garment {
+  display: grid;
+  place-items: end center;
+  height: 118px;
+  padding: 0.35rem 0.25rem 0.2rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 40%),
+    linear-gradient(180deg, #fff8fa, #ffe3ec);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 8px 16px rgba(140, 50, 80, 0.08);
+}
+
+.shelf__garment img {
+  max-width: 88%;
+  max-height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 10px rgba(90, 30, 50, 0.12));
+}
+
+.shelf__caption em {
+  font-style: normal;
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #b07a84;
+}
+
+.shelf__empty {
+  margin: 0.75rem 0.35rem;
+  color: #b07a84;
+  font-size: 0.85rem;
+}
+
+/* Her in the middle */
+.walkin__mirror {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 0.55rem;
+  min-height: 0;
+}
+
+.walkin__mirror-frame {
+  position: relative;
+  height: 100%;
+  min-height: 320px;
+  border-radius: 999px / 8%;
+  padding: 0.55rem;
+  background:
+    linear-gradient(160deg, #f3d6de, #e8b8c6 45%, #df9fau 100%);
+  background: linear-gradient(160deg, #f3d6de, #e8b8c6 45%, #df9fb0 100%);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 120, 160, 0.35),
-    inset 0 -50px 70px rgba(255, 90, 140, 0.08);
+    0 24px 48px rgba(160, 60, 95, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.walkin__stage {
+  position: relative;
+  height: 100%;
+  min-height: 300px;
+  border-radius: 999px / 7%;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, 0.75), transparent 55%),
+    linear-gradient(180deg, #fff5f8 0%, #ffe6ee 55%, #f8d5e0 100%);
   touch-action: none;
   user-select: none;
 }
 
-.barbie-box__inner-bg {
+.walkin__glow {
   position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgba(255, 220, 232, 0.2), rgba(255, 240, 245, 0.55)),
-    url("/playground-dollbox-bg.png") center / cover no-repeat;
+  inset: 8% 18% auto;
+  height: 35%;
+  background: radial-gradient(ellipse, rgba(255, 255, 255, 0.8), transparent 70%);
   pointer-events: none;
 }
 
-.barbie-box__stand {
-  position: absolute;
-  left: 18%;
-  right: 18%;
-  bottom: 4%;
-  height: 7%;
-  border-radius: 40% / 55%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 190, 210, 0.45));
-  box-shadow: 0 8px 18px rgba(180, 60, 100, 0.12);
-  pointer-events: none;
-  z-index: 2;
-}
-
-.barbie-box__doll {
+.walkin__doll {
   position: absolute;
   left: 50%;
-  bottom: 6%;
+  bottom: 2%;
   transform: translateX(-50%);
-  height: 86%;
+  height: 94%;
   width: auto;
-  max-width: 52%;
+  max-width: 46%;
   object-fit: contain;
   pointer-events: none;
-  z-index: 4;
-  filter: drop-shadow(0 16px 22px rgba(140, 40, 80, 0.2));
+  z-index: 2;
+  filter: drop-shadow(0 18px 24px rgba(120, 40, 70, 0.18));
 }
 
-/* Piece + selection chrome */
+.walkin__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.walkin__actions > button,
+.walkin__actions > a {
+  height: 2.05rem;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(200, 120, 140, 0.35);
+  background: rgba(255, 255, 255, 0.88);
+  color: #8a3d52;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: inline-grid;
+  place-items: center;
+}
+
+.walkin__actions > button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.walkin__actions > a {
+  border-color: transparent;
+  background: transparent;
+  border-bottom: 1px solid rgba(138, 61, 82, 0.35);
+  border-radius: 0;
+  height: auto;
+  padding: 0.2rem 0;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 0.82rem;
+}
+
+/* Piece + selection chrome (shared) */
 .closet-piece {
   position: absolute;
   width: 0;
@@ -2298,216 +2424,26 @@ img {
 .closet-sel__h--e { right: -5px; }
 .closet-sel__h--w { left: -5px; }
 
-.closet-sel__h--ne,
-.closet-sel__h--nw,
-.closet-sel__h--se,
-.closet-sel__h--sw {
-  width: 10px;
-  height: 10px;
-}
-
 .closet-sel__h--ne { top: -5px; right: -5px; cursor: nesw-resize; }
 .closet-sel__h--nw { top: -5px; left: -5px; cursor: nwse-resize; }
 .closet-sel__h--se { bottom: -5px; right: -5px; cursor: nwse-resize; }
 .closet-sel__h--sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
 
-.closet__bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  align-items: center;
-  margin-top: 0.85rem;
-}
-
-.closet__bar > button {
-  height: 2.2rem;
-  padding: 0 0.9rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 80, 130, 0.35);
-  background: rgba(255, 255, 255, 0.88);
-  color: #8a3d52;
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.closet__bar > button:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.closet__buy {
-  margin-left: auto;
-  font-size: 0.8rem;
-  color: #8a3d52;
-  border-bottom: 1px solid rgba(138, 61, 82, 0.35);
-}
-
-/* Walk-in wardrobe */
-.wardrobe {
-  position: relative;
-  min-height: min(72vh, 720px);
-  padding: 1rem 0.85rem 1rem;
-  border-radius: 4px 18px 18px 4px;
-  background:
-    linear-gradient(180deg, rgba(255, 252, 253, 0.96), rgba(255, 236, 242, 0.9));
-  border: 1px solid rgba(232, 150, 175, 0.4);
-  box-shadow: 0 18px 40px rgba(180, 70, 110, 0.12);
-  overflow: hidden;
-}
-
-.wardrobe__top {
-  position: relative;
-  z-index: 2;
-  margin-bottom: 0.85rem;
-}
-
-.wardrobe__top h2 {
-  margin: 0 0 0.55rem;
-  font-family: var(--display);
-  font-style: italic;
-  font-weight: 500;
-  font-size: 1.55rem;
-  color: #7a3d4a;
-}
-
-.wardrobe__tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-.wardrobe__tabs button {
-  padding: 0.35rem 0.7rem;
-  border-radius: 999px;
-  font-size: 0.62rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #b07a84;
-  border: 1px solid transparent;
-}
-
-.wardrobe__tabs button.is-on {
-  color: #7a3d4a;
-  background: #fff;
-  border-color: rgba(255, 100, 150, 0.35);
-}
-
-.wardrobe__rail {
-  position: absolute;
-  left: 8%;
-  right: 8%;
-  top: 5.6rem;
-  height: 6px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #d8b8c0, #b88894);
-  box-shadow: 0 4px 8px rgba(120, 50, 70, 0.15);
-  z-index: 1;
-}
-
-.wardrobe__hang {
-  list-style: none;
-  margin: 1.35rem 0 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.1rem 0.75rem;
-  max-height: min(62vh, 620px);
-  overflow: auto;
-  position: relative;
-  z-index: 2;
-}
-
-.wardrobe__item {
-  display: grid;
-  gap: 0.35rem;
-  width: 100%;
-  text-align: left;
-  padding: 0;
-  position: relative;
-}
-
-.wardrobe__hook {
-  display: block;
-  width: 14px;
-  height: 18px;
-  margin: 0 auto -4px;
-  border: 2px solid #b88894;
-  border-bottom: 0;
-  border-radius: 10px 10px 0 0;
-  background: transparent;
-}
-
-.wardrobe__garment {
-  display: grid;
-  place-items: center;
-  aspect-ratio: 3 / 4.1;
-  padding: 0.65rem 0.45rem 0.35rem;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.4), transparent 30%),
-    linear-gradient(180deg, #fff5f8, #ffe0ea);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  box-shadow: 0 10px 18px rgba(150, 50, 85, 0.08);
-}
-
-.wardrobe__garment img {
-  max-width: 86%;
-  max-height: 90%;
-  object-fit: contain;
-  filter: drop-shadow(0 8px 12px rgba(100, 40, 60, 0.12));
-}
-
-.wardrobe__label {
-  display: grid;
-  gap: 0.1rem;
-  min-width: 0;
-  padding: 0 0.15rem;
-}
-
-.wardrobe__label em {
-  font-style: normal;
-  font-size: 0.58rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #b07a84;
-}
-
-.wardrobe__label span {
-  font-family: var(--display);
-  font-size: 0.9rem;
-  line-height: 1.2;
-  color: #6e3a44;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-@media (max-width: 900px) {
-  .closet__layout {
-    grid-template-columns: 1fr;
+@media (max-width: 720px) {
+  .walkin__scene {
+    grid-template-rows: auto minmax(280px, 48vh) auto;
   }
 
-  .closet__stage-col {
-    position: static;
+  .shelf__item {
+    width: 78px;
   }
 
-  .barbie-box__window {
-    height: min(56vh, 520px);
+  .shelf__garment {
+    height: 100px;
   }
 
-  .wardrobe {
-    min-height: 0;
-    border-radius: 18px;
-  }
-
-  .wardrobe__hang {
-    max-height: none;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .closet__buy {
-    margin-left: 0;
-    width: 100%;
+  .walkin__doll {
+    max-width: 58%;
   }
 }
 

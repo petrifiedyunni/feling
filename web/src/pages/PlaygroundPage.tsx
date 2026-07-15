@@ -13,7 +13,7 @@ import { formatPrice } from "../types";
 import { productImage } from "../productImage";
 
 const products = catalog as Product[];
-const STORAGE_KEY = "feling-playground-v2";
+const STORAGE_KEY = "feling-playground-v3";
 const DOLL = "/playground-doll.png";
 const BASE_W = 200;
 
@@ -51,6 +51,9 @@ type Gesture =
       y: number;
     };
 
+const SHELF_ORDER = ["ready-to-wear", "shoes", "bags"] as const;
+type ShelfKey = (typeof SHELF_ORDER)[number];
+
 function slotFor(p: Product): Slot {
   const t = `${p.title} ${p.category}`.toLowerCase();
   if (p.category === "shoes" || /heel|shoe|boot|sandal|mule|pump|loafer/.test(t))
@@ -67,17 +70,17 @@ function slotFor(p: Product): Slot {
 function defaultPose(slot: Slot): Pick<Placed, "x" | "y" | "scale" | "rot" | "z"> {
   switch (slot) {
     case "dress":
-      return { x: 50, y: 54, scale: 0.85, rot: 0, z: 20 };
+      return { x: 50, y: 54, scale: 0.9, rot: 0, z: 20 };
     case "top":
-      return { x: 50, y: 40, scale: 0.62, rot: 0, z: 25 };
+      return { x: 50, y: 40, scale: 0.65, rot: 0, z: 25 };
     case "bottom":
-      return { x: 50, y: 64, scale: 0.62, rot: 0, z: 18 };
+      return { x: 50, y: 64, scale: 0.65, rot: 0, z: 18 };
     case "shoes":
-      return { x: 50, y: 88, scale: 0.36, rot: 0, z: 30 };
+      return { x: 50, y: 88, scale: 0.38, rot: 0, z: 30 };
     case "bag":
-      return { x: 70, y: 56, scale: 0.42, rot: -6, z: 28 };
+      return { x: 68, y: 56, scale: 0.42, rot: -6, z: 28 };
     default:
-      return { x: 50, y: 50, scale: 0.5, rot: 0, z: 22 };
+      return { x: 50, y: 50, scale: 0.55, rot: 0, z: 22 };
   }
 }
 
@@ -102,22 +105,75 @@ function angleAt(stage: DOMRect, xPct: number, yPct: number, clientX: number, cl
   return (Math.atan2(clientY - cy, clientX - cx) * 180) / Math.PI;
 }
 
-function localDelta(
-  dx: number,
-  dy: number,
-  rotDeg: number
-): { lx: number; ly: number } {
+function localDelta(dx: number, dy: number, rotDeg: number) {
   const r = (-rotDeg * Math.PI) / 180;
   const cos = Math.cos(r);
   const sin = Math.sin(r);
   return { lx: dx * cos - dy * sin, ly: dx * sin + dy * cos };
 }
 
+function ShelfRow({
+  label,
+  items,
+  onPick,
+}: {
+  label: string;
+  items: Product[];
+  onPick: (p: Product) => void;
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  const nudge = (dir: -1 | 1) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.min(320, el.clientWidth * 0.7), behavior: "smooth" });
+  };
+
+  return (
+    <section className="shelf">
+      <div className="shelf__head">
+        <h2>{label}</h2>
+        <div className="shelf__nudge">
+          <button type="button" aria-label={`Previous ${label}`} onClick={() => nudge(-1)}>
+            ‹
+          </button>
+          <button type="button" aria-label={`Next ${label}`} onClick={() => nudge(1)}>
+            ›
+          </button>
+        </div>
+      </div>
+      <div className="shelf__ledge" aria-hidden />
+      <div className="shelf__track" ref={scrollerRef}>
+        {items.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            className="shelf__item"
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData("text/product-id", p.id);
+              e.dataTransfer.effectAllowed = "copy";
+            }}
+            onClick={() => onPick(p)}
+            title={p.title}
+          >
+            <span className="shelf__hook" aria-hidden />
+            <span className="shelf__garment">
+              <img src={productImage(p)} alt="" />
+            </span>
+            <span className="shelf__caption">
+              <em>{p.designer}</em>
+            </span>
+          </button>
+        ))}
+        {!items.length && <p className="shelf__empty">Nothing on this shelf yet</p>}
+      </div>
+    </section>
+  );
+}
+
 export function PlaygroundPage() {
   const stageRef = useRef<HTMLDivElement>(null);
-  const [filter, setFilter] = useState<"all" | "ready-to-wear" | "shoes" | "bags">(
-    "ready-to-wear"
-  );
   const [placed, setPlaced] = useState<Placed[]>(() =>
     typeof window === "undefined" ? [] : loadPlaced()
   );
@@ -127,9 +183,19 @@ export function PlaygroundPage() {
 
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), []);
 
-  const wardrobe = useMemo(() => {
-    return products.filter((p) => (filter === "all" ? true : p.category === filter));
-  }, [filter]);
+  const byShelf = useMemo(() => {
+    const map: Record<ShelfKey, Product[]> = {
+      "ready-to-wear": [],
+      shoes: [],
+      bags: [],
+    };
+    for (const p of products) {
+      if (p.category === "shoes") map.shoes.push(p);
+      else if (p.category === "bags") map.bags.push(p);
+      else map["ready-to-wear"].push(p);
+    }
+    return map;
+  }, []);
 
   const active = placed.find((p) => p.uid === activeUid);
   const activeProduct = active ? byId.get(active.productId) : undefined;
@@ -146,16 +212,13 @@ export function PlaygroundPage() {
       const rect = stage.getBoundingClientRect();
 
       if (g.kind === "move") {
-        const x = Math.min(92, Math.max(8, ((e.clientX - rect.left) / rect.width) * 100 - g.ox));
-        const y = Math.min(94, Math.max(8, ((e.clientY - rect.top) / rect.height) * 100 - g.oy));
+        const x = Math.min(90, Math.max(10, ((e.clientX - rect.left) / rect.width) * 100 - g.ox));
+        const y = Math.min(92, Math.max(10, ((e.clientY - rect.top) / rect.height) * 100 - g.oy));
         setPlaced((prev) => prev.map((p) => (p.uid === g.uid ? { ...p, x, y } : p)));
         return;
       }
-
       if (g.kind === "scale") {
-        const dx = e.clientX - g.startX;
-        const dy = e.clientY - g.startY;
-        const { lx, ly } = localDelta(dx, dy, g.rot);
+        const { lx, ly } = localDelta(e.clientX - g.startX, e.clientY - g.startY, g.rot);
         let delta = 0;
         if (g.edge.includes("e")) delta += lx;
         if (g.edge.includes("w")) delta -= lx;
@@ -166,7 +229,6 @@ export function PlaygroundPage() {
         setPlaced((prev) => prev.map((p) => (p.uid === g.uid ? { ...p, scale } : p)));
         return;
       }
-
       if (g.kind === "rotate") {
         const ang = angleAt(rect, g.x, g.y, e.clientX, e.clientY);
         const rot = Math.round(g.startRot + (ang - g.startAngle));
@@ -305,186 +367,137 @@ export function PlaygroundPage() {
   const edges: Edge[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
 
   return (
-    <section className="closet">
-      <div className="closet__room" aria-hidden />
-      <div className="closet__veil" aria-hidden />
+    <section className="walkin">
+      <div className="walkin__room" aria-hidden />
 
-      <header className="closet__head">
-        <p className="closet__kicker">Walk-in</p>
-        <h1>Her closet</h1>
-        <p className="closet__lede">
-          Pull something from the wardrobe. Fit it on her in the window.
-        </p>
-      </header>
+      <div className="walkin__frame">
+        <header className="walkin__head">
+          <p>Walk-in wardrobe</p>
+          <h1>feling.</h1>
+        </header>
 
-      <div className="closet__layout">
-        <div className="closet__stage-col">
-          <div className="barbie-box">
-            <div className="barbie-box__cardboard" aria-hidden>
-              <span className="barbie-box__brand">feling.</span>
-              <span className="barbie-box__mark">fashion doll</span>
-            </div>
-            <div
-              ref={stageRef}
-              className="barbie-box__window"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={onStageDrop}
-              onClick={() => setActiveUid(null)}
-            >
-              <div className="barbie-box__inner-bg" aria-hidden />
-              <div className="barbie-box__stand" aria-hidden />
-              <img className="barbie-box__doll" src={DOLL} alt="" draggable={false} />
+        <div className="walkin__scene">
+          <div className="walkin__shelves walkin__shelves--top">
+            <ShelfRow
+              label="Clothes"
+              items={byShelf["ready-to-wear"]}
+              onPick={addPiece}
+            />
+          </div>
 
-              {placed.map((piece) => {
-                const product = byId.get(piece.productId);
-                if (!product) return null;
-                const selected = piece.uid === activeUid;
-                const w = BASE_W * piece.scale;
-                return (
-                  <div
-                    key={piece.uid}
-                    className={`closet-piece${selected ? " is-active" : ""}`}
-                    style={{ left: `${piece.x}%`, top: `${piece.y}%`, zIndex: piece.z }}
-                    onWheel={(e) => onPieceWheel(e, piece.uid)}
-                  >
+          <div className="walkin__mirror">
+            <div className="walkin__mirror-frame">
+              <div
+                ref={stageRef}
+                className="walkin__stage"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={onStageDrop}
+                onClick={() => setActiveUid(null)}
+              >
+                <div className="walkin__glow" aria-hidden />
+                <img className="walkin__doll" src={DOLL} alt="Dress-up doll" draggable={false} />
+
+                {placed.map((piece) => {
+                  const product = byId.get(piece.productId);
+                  if (!product) return null;
+                  const selected = piece.uid === activeUid;
+                  const w = BASE_W * piece.scale;
+                  return (
                     <div
-                      className="closet-piece__body"
-                      style={{
-                        width: w,
-                        transform: `translate(-50%, -50%) rotate(${piece.rot}deg)`,
-                      }}
+                      key={piece.uid}
+                      className={`closet-piece${selected ? " is-active" : ""}`}
+                      style={{ left: `${piece.x}%`, top: `${piece.y}%`, zIndex: piece.z }}
+                      onWheel={(e) => onPieceWheel(e, piece.uid)}
                     >
-                      <button
-                        type="button"
-                        className="closet-piece__hit"
-                        onPointerDown={(e) => onMoveDown(e, piece.uid)}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          bringFront(piece.uid);
+                      <div
+                        className="closet-piece__body"
+                        style={{
+                          width: w,
+                          transform: `translate(-50%, -50%) rotate(${piece.rot}deg)`,
                         }}
-                        aria-label={product.title}
                       >
-                        <img src={productImage(product)} alt="" draggable={false} />
-                      </button>
-
-                      {selected && (
-                        <div
-                          className="closet-sel"
-                          onClick={(e) => e.stopPropagation()}
-                          onPointerDown={(e) => e.stopPropagation()}
+                        <button
+                          type="button"
+                          className="closet-piece__hit"
+                          onPointerDown={(e) => onMoveDown(e, piece.uid)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            bringFront(piece.uid);
+                          }}
+                          aria-label={product.title}
                         >
-                          <button
-                            type="button"
-                            className="closet-sel__x"
-                            aria-label={`Remove ${product.title}`}
-                            onClick={() => removePiece(piece.uid)}
+                          <img src={productImage(product)} alt="" draggable={false} />
+                        </button>
+
+                        {selected && (
+                          <div
+                            className="closet-sel"
+                            onClick={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
                           >
-                            ×
-                          </button>
-                          <button
-                            type="button"
-                            className="closet-sel__rot"
-                            aria-label="Drag to rotate"
-                            onPointerDown={(e) => onRotateDown(e, piece.uid)}
-                          />
-                          {edges.map((edge) => (
                             <button
-                              key={edge}
                               type="button"
-                              className={`closet-sel__h closet-sel__h--${edge}`}
-                              aria-label={`Resize ${edge}`}
-                              onPointerDown={(e) => onScaleDown(e, piece.uid, edge)}
+                              className="closet-sel__x"
+                              aria-label={`Remove ${product.title}`}
+                              onClick={() => removePiece(piece.uid)}
+                            >
+                              ×
+                            </button>
+                            <button
+                              type="button"
+                              className="closet-sel__rot"
+                              aria-label="Drag to rotate"
+                              onPointerDown={(e) => onRotateDown(e, piece.uid)}
                             />
-                          ))}
-                        </div>
-                      )}
+                            {edges.map((edge) => (
+                              <button
+                                key={edge}
+                                type="button"
+                                className={`closet-sel__h closet-sel__h--${edge}`}
+                                aria-label={`Resize ${edge}`}
+                                onPointerDown={(e) => onScaleDown(e, piece.uid, edge)}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="walkin__actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setPlaced([]);
+                  setActiveUid(null);
+                }}
+                disabled={!placed.length}
+              >
+                Undress
+              </button>
+              <button
+                type="button"
+                onClick={() => activeUid && removePiece(activeUid)}
+                disabled={!active}
+              >
+                Remove
+              </button>
+              {activeProduct && (
+                <Link to={`/piece/${activeProduct.slug}`}>
+                  Shop · {formatPrice(activeProduct.price)}
+                </Link>
+              )}
             </div>
           </div>
 
-          <div className="closet__bar">
-            <button
-              type="button"
-              onClick={() => {
-                setPlaced([]);
-                setActiveUid(null);
-              }}
-              disabled={!placed.length}
-            >
-              Clear look
-            </button>
-            <button
-              type="button"
-              onClick={() => activeUid && removePiece(activeUid)}
-              disabled={!active}
-            >
-              Remove piece
-            </button>
-            {activeProduct && (
-              <Link className="closet__buy" to={`/piece/${activeProduct.slug}`}>
-                Shop this · {formatPrice(activeProduct.price)}
-              </Link>
-            )}
+          <div className="walkin__shelves walkin__shelves--bottom">
+            <ShelfRow label="Shoes" items={byShelf.shoes} onPick={addPiece} />
+            <ShelfRow label="Bags" items={byShelf.bags} onPick={addPiece} />
           </div>
         </div>
-
-        <aside className="wardrobe">
-          <div className="wardrobe__top">
-            <h2>Wardrobe</h2>
-            <div className="wardrobe__tabs" role="tablist">
-              {(
-                [
-                  ["ready-to-wear", "Clothes"],
-                  ["shoes", "Shoes"],
-                  ["bags", "Bags"],
-                  ["all", "All"],
-                ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  role="tab"
-                  className={filter === key ? "is-on" : undefined}
-                  aria-selected={filter === key}
-                  onClick={() => setFilter(key)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="wardrobe__rail" aria-hidden />
-          <ul className="wardrobe__hang">
-            {wardrobe.map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  className="wardrobe__item"
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData("text/product-id", p.id);
-                    e.dataTransfer.effectAllowed = "copy";
-                  }}
-                  onClick={() => addPiece(p)}
-                  title={p.title}
-                >
-                  <span className="wardrobe__hook" aria-hidden />
-                  <span className="wardrobe__garment">
-                    <img src={productImage(p)} alt="" />
-                  </span>
-                  <span className="wardrobe__label">
-                    <em>{p.designer}</em>
-                    <span>{p.title}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </aside>
       </div>
     </section>
   );
