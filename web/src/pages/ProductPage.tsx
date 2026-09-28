@@ -68,7 +68,7 @@ export function ProductPage() {
 
           <ul className="product__notes">
             <li>{conditionLabel(product.condition)}</li>
-            <li>Authenticated archive piece</li>
+            <li>Sourced from vetted archive sellers</li>
           </ul>
 
           <ul className="product__facts">
@@ -82,15 +82,19 @@ export function ProductPage() {
             </li>
           </ul>
 
-          <div className="pay">
-            <button type="button" className="pay__secondary" onClick={onAdd}>
-              {added ? "Added" : "Add to cart"}
-            </button>
-            <button type="button" className="pay__primary" onClick={onBuy}>
-              Buy now
-            </button>
-            <PaymentMarks />
-          </div>
+          {product.sold ? (
+            <p className="product__sold">This piece has sold.</p>
+          ) : (
+            <div className="pay">
+              <button type="button" className="pay__secondary" onClick={onAdd}>
+                {added ? "Added" : "Add to cart"}
+              </button>
+              <button type="button" className="pay__primary" onClick={onBuy}>
+                Buy now
+              </button>
+              <PaymentMarks />
+            </div>
+          )}
 
           <div className="product__more">
             <button

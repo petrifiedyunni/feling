@@ -8,11 +8,12 @@ export function ProductTile({ product, index = 0 }: { product: Product; index?: 
   return (
     <Link
       to={`/piece/${product.slug}`}
-      className={`tile tile--${product.category}`}
+      className={`tile tile--${product.category}${product.sold ? " tile--sold" : ""}`}
       style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }}
     >
       <div className="tile__media">
         <img src={src} alt={product.title} loading="lazy" />
+        {product.sold && <span className="tile__badge">Sold</span>}
       </div>
       <div className="tile__meta">
         <span className="tile__designer">{product.designer}</span>

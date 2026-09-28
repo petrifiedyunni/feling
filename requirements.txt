@@ -6,3 +6,5 @@ python-dotenv==1.0.1
 requests==2.32.3
 lxml==5.2.2
 curl_cffi==0.15.0
+openpyxl==3.1.5
+bcrypt==4.2.0

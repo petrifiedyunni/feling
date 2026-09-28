@@ -10,7 +10,12 @@ pending.json
 seen_ids.json
 reports/
 
+# Team login credentials (bcrypt hashes) — never commit
+team_users.json
+
 # Web
 web/node_modules/
 web/dist/
 .vercel/
+.vercel
+.env*

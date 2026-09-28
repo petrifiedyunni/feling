@@ -5,7 +5,12 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
 const approvedPath = path.join(root, "approved.json");
+const inventoryPath = path.join(root, "inventory_status.json");
 const outPath = path.join(__dirname, "../src/data/catalog.json");
+
+// Only these statuses are customer-visible; approved/received/QC/photographed
+// stay internal until someone marks the piece listed via the /ops page.
+const VISIBLE_STATUSES = new Set(["listed", "sold"]);
 
 const SHOE_RE =
   /(heel|heels|shoe|shoes|mule|mules|pump|pumps|boot|boots|sandal|sandals|stiletto|sneaker|sneakers|loafer|loafers|espadrille|wedge|wedges|ballerin|slingback)/i;
@@ -114,9 +119,14 @@ if (items.length !== (Array.isArray(raw) ? raw.length : 0)) {
   );
 }
 
+const inventory = fs.existsSync(inventoryPath)
+  ? JSON.parse(fs.readFileSync(inventoryPath, "utf8"))
+  : {};
+
 const seenIds = new Set();
 const seenUrls = new Set();
 const out = [];
+let hiddenCount = 0;
 
 for (const it of [...items].reverse()) {
   if (!it.photo || !it.url) continue;
@@ -124,6 +134,13 @@ for (const it of [...items].reverse()) {
   const url = canonUrl(it.url);
   if (seenIds.has(id)) continue;
   if (url && seenUrls.has(url)) continue;
+
+  const status = inventory[id]?.status || "approved";
+  if (!VISIBLE_STATUSES.has(status)) {
+    hiddenCount += 1;
+    continue;
+  }
+
   seenIds.add(id);
   if (url) seenUrls.add(url);
 
@@ -149,6 +166,8 @@ for (const it of [...items].reverse()) {
     platform: it.platform,
     approved_at: it.approved_at,
     era: "Archive",
+    status,
+    sold: status === "sold",
   });
 }
 
@@ -160,3 +179,8 @@ const counts = out.reduce((acc, p) => {
   return acc;
 }, {});
 console.log(`Synced ${out.length} products → src/data/catalog.json`, counts);
+if (hiddenCount) {
+  console.log(
+    `${hiddenCount} approved item(s) hidden from shop — not yet "listed" in inventory_status.json (see /ops).`
+  );
+}

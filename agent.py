@@ -23,14 +23,19 @@ import logging
 import asyncio
 import hashlib
 import re
+import secrets
 import smtplib
 import subprocess
 import html as html_lib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from urllib.parse import quote
+from email.mime.application import MIMEApplication
+from io import BytesIO
+from urllib.parse import quote, urljoin
 from datetime import datetime, timedelta
 from pathlib import Path
+import bcrypt
+from aiohttp import web
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -63,6 +68,13 @@ SMTP_USER        = (os.getenv("SMTP_USER") or "").strip()
 SMTP_PASSWORD    = (os.getenv("SMTP_PASSWORD") or "").strip()
 WEEKLY_REPORT_DAY = (os.getenv("WEEKLY_REPORT_DAY") or "mon").strip().lower()
 WEEKLY_REPORT_HOUR = int(os.getenv("WEEKLY_REPORT_HOUR", "9"))
+PROCUREMENT_EXPORT_DAY  = (os.getenv("PROCUREMENT_EXPORT_DAY") or "fri").strip().lower()
+PROCUREMENT_EXPORT_HOUR = int(os.getenv("PROCUREMENT_EXPORT_HOUR", "9"))
+
+# Team web API (login required) — see /ops, /review. Railway (and most PaaS
+# hosts) inject PORT and expect the app to bind to it; WEB_PORT is the local
+# dev fallback.
+WEB_PORT = int(os.getenv("PORT") or os.getenv("WEB_PORT", "8787"))
 SEEN_DB          = Path("seen_ids.json")
 PENDING_DB       = Path("pending.json")
 APPROVED_DB      = Path("approved.json")
@@ -70,6 +82,10 @@ SETTINGS_DB      = Path("settings.json")
 TREND_DB         = Path("trend_snapshot.json")
 TASTE_DB         = Path("taste_profile.json")
 SKIPPED_DB       = Path("skipped.json")
+EXPORT_MARKER_DB = Path("last_procurement_export.json")
+INVENTORY_STATUS_DB = Path("inventory_status.json")  # written by web/ /ops page
+USERS_DB = Path("team_users.json")  # named team accounts — see `python agent.py --add-user`
+SESSION_TTL_HOURS = 24 * 7  # web login session lifetime
 REPORTS_DIR      = Path("reports")
 HTTP_TIMEOUT_SECONDS = 30
 GRAILED_ALGOLIA_APP_ID = "MNRWEFSS2Q"
@@ -84,7 +100,21 @@ VESTIAIRE_PRODUCT_FETCH_CONCURRENCY = 8
 TASTE_MIN_SAMPLES = 3
 WEEKLY_REPORT_LOOKBACK_DAYS = 7
 WEEKLY_REPORT_MAX_ITEMS = 40
+PROCUREMENT_EXPORT_LOOKBACK_DAYS = 7  # fallback window before any export has ever run
+
+# Mirrors web/src/types.ts STATUS_LABEL — keep both in sync.
+STATUS_LABELS = {
+    "approved": "Approved (not yet received)",
+    "received": "Received",
+    "qc_passed": "QC passed",
+    "photographed": "Photographed",
+    "listed": "Listed for sale",
+    "sold": "Sold",
+    "returned": "Returned / issue",
+}
 _TASTE_CACHE: dict | None = None
+_BOT_REF = None  # set once in main() so shared approve/skip logic can notify Telegram
+_SESSIONS: dict[str, dict] = {}  # in-memory web session store: token -> {username, expires}
 
 CONDITION_RANK = {
     "is_new": 5,
@@ -177,6 +207,87 @@ JP_FEMININE_INCLUDE = [
     "ジャケット", "コート", "レース", "シルク", "サテン", "靴",
 ]
 
+# Traditional (TW) + Simplified — Yahoo TW / Grailed Asia / mixed titles
+CN_FEMININE_INCLUDE = [
+    "洋裝", "洋装", "連身裙", "连身裙", "裙子", "上衣", "外套",
+    "包", "手袋", "手拿包", "肩背包", "馬鞍包", "马鞍包",
+    "高跟鞋", "跟鞋", "穆勒鞋", "涼鞋", "凉鞋", "靴", "鞋",
+    "胸衣", "緊身胸衣", "紧身胸衣", "馬甲", "马甲", "網紗", "网纱",
+    "套裝", "套装",
+]
+
+CJK_SHAPE_INCLUDE = JP_FEMININE_INCLUDE + CN_FEMININE_INCLUDE
+
+# Map native script → English tokens so JP/CN titles still hit taste + style gates
+CJK_ALIASES = {
+    "シャネル": ["chanel"],
+    "香奈兒": ["chanel"],
+    "香奈尔": ["chanel"],
+    "ディオール": ["dior"],
+    "クリスチャンディオール": ["dior", "christian dior"],
+    "迪奧": ["dior"],
+    "迪奥": ["dior"],
+    "ガリアーノ": ["galliano", "john galliano"],
+    "ジョンガリアーノ": ["galliano", "john galliano"],
+    "加利亞諾": ["galliano"],
+    "加利亚诺": ["galliano"],
+    "カヴァリ": ["cavalli"],
+    "カバリ": ["cavalli"],
+    "ロベルトカヴァリ": ["cavalli", "roberto cavalli"],
+    "ジャストカヴァリ": ["cavalli", "just cavalli"],
+    "卡沃利": ["cavalli"],
+    "卡瓦利": ["cavalli"],
+    "ゴルチエ": ["gaultier"],
+    "ジャンポールゴルチエ": ["gaultier", "jean paul gaultier"],
+    "ジャンポール・ゴルチエ": ["gaultier", "jean paul gaultier"],
+    "高緹耶": ["gaultier"],
+    "高缇耶": ["gaultier"],
+    "高提耶": ["gaultier"],
+    "グッチ": ["gucci"],
+    "古馳": ["gucci"],
+    "古驰": ["gucci"],
+    "トムフォード": ["tom ford"],
+    "トム・フォード": ["tom ford"],
+    "湯姆福特": ["tom ford"],
+    "汤姆福特": ["tom ford"],
+    "サドル": ["saddle"],
+    "トロッター": ["trotter"],
+    "コロンブス": ["columbus"],
+    "ジャッキー": ["jackie"],
+    "バンブー": ["bamboo"],
+    "ヴィンテージ": ["vintage"],
+    "ビンテージ": ["vintage"],
+    "アーカイブ": ["archive"],
+    "レオパード": ["leopard"],
+    "アニマル": ["animal print"],
+    "コルセット": ["corset"],
+    "ワンピース": ["dress"],
+    "ドレス": ["dress"],
+    "メッシュ": ["mesh"],
+    "パンプス": ["pump", "heel", "shoe"],
+    "ミュール": ["mule", "shoe"],
+    "ヒール": ["heel", "shoe"],
+    "靴": ["shoe"],
+    "バッグ": ["bag"],
+    "手袋": ["bag", "handbag"],
+    "手拿包": ["clutch", "bag"],
+    "手提包": ["bag", "handbag"],
+    "肩背包": ["bag"],
+    "包": ["bag"],
+    "洋裝": ["dress"],
+    "洋装": ["dress"],
+    "連身裙": ["dress"],
+    "连身裙": ["dress"],
+    "馬鞍包": ["saddle", "bag"],
+    "马鞍包": ["saddle", "bag"],
+    "古董": ["vintage"],
+    "稀有": ["rare"],
+    "豹紋": ["leopard"],
+    "豹纹": ["leopard"],
+    "高跟鞋": ["heel", "shoe"],
+    "胸衣": ["corset"],
+}
+
 JPY_PER_USD = 150
 TWD_PER_USD = 32
 DEFAULT_JAPAN_MAX_USD = 450
@@ -194,7 +305,7 @@ RULES = [
         "brand": "Chanel Rare Bags",
         "focus": "bags",
         "keywords": [
-            "chanel", "シャネル",
+            "chanel", "シャネル", "香奈兒", "香奈尔",
         ],
         "search_queries": [
             "chanel classic flap vintage",
@@ -206,16 +317,24 @@ RULES = [
             "chanel collector bag",
         ],
         "jp_queries": [
-            "シャネル バッグ ヴィンテージ",
+            "シャネル バッグ",
+            "シャネル ヴィンテージ バッグ",
             "シャネル 2.55",
             "シャネル クラシックフラップ",
+            "シャネル マトラッセ",
             "シャネル レア バッグ",
         ],
         "tw_queries": [
-            "香奈兒 包 古董",
+            "香奈兒 包",
+            "香奈兒 古董 包",
             "香奈兒 2.55",
-            "Chanel classic flap",
+            "香奈兒 流浪包",
             "香奈兒 稀有 包",
+        ],
+        "cn_queries": [
+            "香奈尔 包",
+            "香奈尔 古董",
+            "香奈尔 2.55",
         ],
         "max_price": 3500,
         "min_price": 200,
@@ -238,6 +357,7 @@ RULES = [
         "focus": "bags",
         "keywords": [
             "dior", "christian dior", "ディオール", "サドル", "トロッター",
+            "迪奧", "迪奥", "馬鞍", "马鞍",
         ],
         "search_queries": [
             "dior saddle bag rare",
@@ -249,16 +369,24 @@ RULES = [
             "christian dior rare handbag",
         ],
         "jp_queries": [
+            "ディオール サドル",
             "ディオール サドルバッグ",
-            "ディオール トロッター バッグ",
+            "ディオール トロッター",
             "ディオール コロンブス",
-            "ディオール レア バッグ",
+            "ガリアーノ ディオール バッグ",
+            "ディオール バッグ ヴィンテージ",
         ],
         "tw_queries": [
             "迪奧 馬鞍包",
+            "迪奧 包 古董",
+            "迪奧 加利亞諾 包",
             "Dior saddle",
-            "迪奧 古董 包",
-            "Christian Dior bag",
+            "迪奧 手提包",
+        ],
+        "cn_queries": [
+            "迪奥 马鞍包",
+            "迪奥 包 古董",
+            "迪奥 Galliano 包",
         ],
         "max_price": 2500,
         "min_price": 80,
@@ -282,6 +410,7 @@ RULES = [
         "focus": "shoes",
         "keywords": [
             "dior", "christian dior", "galliano", "ディオール", "ガリアーノ",
+            "迪奧", "迪奥", "加利亞諾", "加利亚诺",
         ],
         "search_queries": [
             "dior galliano heels",
@@ -295,13 +424,23 @@ RULES = [
         "jp_queries": [
             "ディオール パンプス",
             "ディオール ヒール",
-            "ガリアーノ ディオール 靴",
+            "ディオール ガリアーノ 靴",
+            "ガリアーノ期 パンプス",
             "ディオール ミュール",
+            "ディオール ボンデージ",
+            "ディオール サンダル",
         ],
         "tw_queries": [
             "迪奧 高跟鞋",
+            "迪奧 加利亞諾 鞋",
+            "迪奧 古董 鞋",
             "Dior Galliano heels",
-            "迪奧 鞋 古董",
+            "迪奧 穆勒鞋",
+        ],
+        "cn_queries": [
+            "迪奥 高跟鞋",
+            "迪奥 加利亚诺 鞋",
+            "迪奥 鞋 古董",
         ],
         "max_price": 900,
         "min_price": 50,
@@ -322,6 +461,7 @@ RULES = [
         "focus": "clothes",
         "keywords": [
             "dior", "christian dior", "galliano", "ディオール", "ガリアーノ",
+            "迪奧", "迪奥", "加利亞諾", "加利亚诺",
         ],
         "search_queries": [
             "dior galliano dress",
@@ -337,11 +477,19 @@ RULES = [
             "ディオール ドレス ヴィンテージ",
             "ガリアーノ ディオール",
             "ディオール コルセット",
+            "ガリアーノ期 ワンピース",
+            "ディオール ガリアーノ トップス",
         ],
         "tw_queries": [
-            "迪奧 Galliano 洋裝",
-            "Dior Galliano dress",
+            "迪奧 加利亞諾 洋裝",
             "迪奧 古董 洋裝",
+            "Dior Galliano dress",
+            "迪奧 胸衣",
+        ],
+        "cn_queries": [
+            "迪奥 加利亚诺 洋装",
+            "迪奥 连衣裙 古董",
+            "迪奥 Galliano",
         ],
         "max_price": 1200,
         "min_price": 60,
@@ -363,6 +511,7 @@ RULES = [
         "keywords": [
             "cavalli", "just cavalli", "roberto cavalli",
             "カヴァリ", "カバリ", "ロベルトカヴァリ", "ジャストカヴァリ",
+            "卡沃利", "卡瓦利",
         ],
         "search_queries": [
             "roberto cavalli animal print dress",
@@ -380,11 +529,20 @@ RULES = [
             "カヴァリ アニマル",
             "ジャストカヴァリ ドレス",
             "カヴァリ セットアップ",
+            "ロベルトカヴァリ ドレス",
+            "カヴァリ コルセット",
         ],
         "tw_queries": [
             "Cavalli 豹紋",
-            "Roberto Cavalli dress",
             "Cavalli 洋裝",
+            "Roberto Cavalli 古董",
+            "卡沃利 洋裝",
+            "Cavalli 套裝",
+        ],
+        "cn_queries": [
+            "卡沃利 连衣裙",
+            "Cavalli 豹纹",
+            "罗伯托卡沃利",
         ],
         "max_price": 700,
         "min_price": 40,
@@ -405,6 +563,7 @@ RULES = [
         "focus": "clothes",
         "keywords": [
             "galliano", "john galliano", "ガリアーノ", "ジョンガリアーノ",
+            "加利亞諾", "加利亚诺",
         ],
         "search_queries": [
             "john galliano vintage dress",
@@ -419,10 +578,17 @@ RULES = [
             "ガリアーノ ドレス",
             "ガリアーノ アーカイブ",
             "ガリアーノ コルセット",
+            "ジョンガリアーノ ヴィンテージ",
         ],
         "tw_queries": [
+            "加利亞諾 洋裝",
             "Galliano 洋裝",
-            "John Galliano dress",
+            "John Galliano 古董",
+            "Galliano 胸衣",
+        ],
+        "cn_queries": [
+            "加利亚诺 洋装",
+            "John Galliano 连衣裙",
             "Galliano 古董",
         ],
         "max_price": 1100,
@@ -444,6 +610,7 @@ RULES = [
         "focus": "clothes",
         "keywords": [
             "gucci", "tom ford", "グッチ", "トムフォード",
+            "古馳", "古驰", "湯姆福特", "汤姆福特",
         ],
         "search_queries": [
             "tom ford gucci dress",
@@ -459,11 +626,18 @@ RULES = [
             "トムフォード グッチ ドレス",
             "グッチ ジャッキー",
             "グッチ バンブー ヴィンテージ",
+            "トムフォード グッチ ワンピース",
         ],
         "tw_queries": [
+            "古馳 湯姆福特",
             "Gucci Tom Ford",
-            "Tom Ford Gucci",
             "古馳 古董",
+            "Gucci Jackie 包",
+        ],
+        "cn_queries": [
+            "古驰 汤姆福特",
+            "古驰 古董",
+            "Gucci Tom Ford",
         ],
         "max_price": 1200,
         "min_price": 60,
@@ -487,6 +661,7 @@ RULES = [
         "keywords": [
             "gaultier", "jean paul gaultier",
             "ゴルチエ", "ジャンポールゴルチエ",
+            "高緹耶", "高缇耶", "高提耶",
         ],
         "search_queries": [
             "jean paul gaultier dress",
@@ -502,6 +677,20 @@ RULES = [
             "ゴルチエ コルセット",
             "ゴルチエ メッシュ",
             "ゴルチエ アーカイブ",
+            "ゴルチエ ドレス",
+            "ジャンポールゴルチエ ヴィンテージ",
+        ],
+        "tw_queries": [
+            "高緹耶 洋裝",
+            "高緹耶 胸衣",
+            "JPG 洋裝",
+            "Gaultier 古董",
+            "高提耶 網紗",
+        ],
+        "cn_queries": [
+            "高缇耶 连衣裙",
+            "高缇耶 胸衣",
+            "Gaultier 网纱",
         ],
         "max_price": 900,
         "min_price": 40,
@@ -681,12 +870,32 @@ def effective_price_bounds(rule: dict, platform: str | None = None) -> tuple[flo
     return min_price, max_price
 
 
+def expand_cjk_hay(text: str) -> str:
+    """Append English aliases when a JP/CN brand or shape word is present."""
+    extra: list[str] = []
+    for native, latins in CJK_ALIASES.items():
+        if native and native in text:
+            extra.extend(latins)
+    if not extra:
+        return text
+    return f"{text} {' '.join(dict.fromkeys(extra))}"
+
+
+def cjk_search_queries(rule: dict) -> list[str]:
+    return list(dict.fromkeys([
+        *(rule.get("jp_queries") or []),
+        *(rule.get("tw_queries") or []),
+        *(rule.get("cn_queries") or []),
+    ]))
+
+
 def extract_taste_tokens(text: str) -> list[str]:
     """Pull aesthetic tokens from a listing title/brand string."""
-    hay = text.lower()
+    hay = expand_cjk_hay(text.lower())
     found = []
     vocab = list(dict.fromkeys(
         TREND_SIGNALS + ARCHIVE_SLAY_INCLUDE + CLOTHES_INCLUDE + BAGS_SHOES_INCLUDE
+        + list(CJK_ALIASES.keys())
     ))
     for term in vocab:
         if term in hay:
@@ -838,7 +1047,7 @@ def taste_score(title: str, brand: str = "", extra: str = "") -> float:
     profile = load_taste_profile()
     if not profile.get("ready"):
         return 0.0
-    hay = f"{brand} {title} {extra}".lower()
+    hay = expand_cjk_hay(f"{brand} {title} {extra}".lower())
     weights = profile.get("token_weights", {})
     score = 0.0
     for token, weight in weights.items():
@@ -848,8 +1057,8 @@ def taste_score(title: str, brand: str = "", extra: str = "") -> float:
 
 
 def matches_rule(title: str, price: float, condition: str, rule: dict, extra: str = "", platform: str | None = None) -> bool:
-    haystack = f"{title} {extra}".lower()
-    # keywords may include Japanese; keep original case-insensitive latin match
+    haystack = expand_cjk_hay(f"{title} {extra}".lower())
+    # keywords may include Japanese / Chinese; latin aliases added by expand_cjk_hay
     if not any(kw.lower() in haystack for kw in rule["keywords"]):
         return False
     min_price, max_price = effective_price_bounds(rule, platform=platform)
@@ -882,10 +1091,11 @@ def matches_rule(title: str, price: float, condition: str, rule: dict, extra: st
         "slip dress", "lace", "mesh", "sheer", "ruched",
         "bag", "clutch", "heel", "pump", "sandal", "mule", "boot",
         "top", "blouse", "camisole", "knit", "deconstructed",
+        *CJK_SHAPE_INCLUDE,
     ])
 
     women_signal = "women" in cleaned or "femme" in cleaned
-    jp_shape = any(term in haystack for term in JP_FEMININE_INCLUDE)
+    jp_shape = any(term in haystack for term in CJK_SHAPE_INCLUDE)
     if not ((has_style or has_era) and (hot_shape or women_signal or jp_shape)):
         return False
 
@@ -897,10 +1107,12 @@ def matches_rule(title: str, price: float, condition: str, rule: dict, extra: st
             "flap", "2.55", "jackie",
             "heel", "pump", "sandal", "mule", "stiletto", "boot", "shoe",
             "バッグ", "ヒール", "パンプス", "ミュール", "サンダル", "靴",
+            "包", "手袋", "高跟鞋", "跟鞋", "穆勒鞋", "涼鞋", "凉鞋", "鞋",
         ])
         if focus == "bags":
             bag_hit = any(term in cleaned for term in BAGS_INCLUDE + [
-                "バッグ", "ハンドバッグ", "クラッチ",
+                "バッグ", "ハンドバッグ", "クラッチ", "包", "手袋", "手拿包",
+                "馬鞍包", "马鞍包",
             ])
             if not bag_hit:
                 return False
@@ -909,11 +1121,12 @@ def matches_rule(title: str, price: float, condition: str, rule: dict, extra: st
     elif focus == "shoes":
         shoe_hit = any(term in cleaned for term in SHOES_INCLUDE + [
             "ヒール", "パンプス", "ミュール", "サンダル", "靴",
+            "高跟鞋", "跟鞋", "穆勒鞋", "涼鞋", "凉鞋", "鞋",
         ])
         if not shoe_hit:
             return False
     elif focus == "clothes":
-        clothes_hit = any(term in cleaned for term in CLOTHES_INCLUDE + JP_FEMININE_INCLUDE)
+        clothes_hit = any(term in cleaned for term in CLOTHES_INCLUDE + CJK_SHAPE_INCLUDE)
         # Tom Ford Gucci may also surface Jackie / bamboo bags
         if rule.get("brand") == "Tom Ford Gucci":
             ford_era = any(term in cleaned for term in [
@@ -946,6 +1159,9 @@ def matches_rule(title: str, price: float, condition: str, rule: dict, extra: st
                 "python", "animal", "saddle", "trotter", "chanel", "2.55",
                 "gaultier", "tom ford", "jackie", "bamboo", "horsebit",
                 "harness", "rare", "archive",
+                "ガリアーノ", "ディオール", "シャネル", "カヴァリ", "ゴルチエ",
+                "加利亞諾", "加利亚诺", "迪奧", "迪奥", "香奈兒", "香奈尔",
+                "卡沃利", "高緹耶", "高缇耶",
             ])
             if not hard_archive:
                 return False
@@ -982,6 +1198,83 @@ def condition_matches_rule(condition: str, rule: dict) -> bool:
         return True
     return any(c.lower() in condition.lower() for c in rule["conditions"])
 
+
+def abs_media_url(url: str, base: str = "https://auctions.yahoo.co.jp") -> str:
+    url = (url or "").strip()
+    if not url or url.startswith("data:") or "placeholder" in url.lower():
+        return ""
+    if url.startswith("//"):
+        return "https:" + url
+    if url.startswith("/"):
+        return urljoin(base, url)
+    if url.startswith("http://"):
+        return "https://" + url[len("http://"):]
+    return url if url.startswith("http") else ""
+
+
+_DEAD_LISTING = (
+    "this listing has been sold",
+    "listing not found",
+    "page not found",
+    "isn't available",
+    "no longer available",
+    "終了しました",
+    "このオークションは終了",
+    "商品は終了",
+    "已結束",
+    "商品已結束",
+    "找不到商品",
+)
+
+
+async def listing_is_live(session: AsyncSession, item: dict) -> bool:
+    """Drop ended auctions / sold pages so Telegram doesn't get empty Buyee/Yahoo links."""
+    platform = item.get("platform") or ""
+    if platform not in {"YahooJP", "Buyee", "YahooTW"}:
+        return True
+    url = item.get("source_url") or item.get("url") or ""
+    if not url:
+        return False
+    try:
+        resp = await session.get(url, headers=HEADERS, timeout=12)
+    except Exception:
+        return False
+    if resp.status_code in (404, 410, 410):
+        return False
+    if resp.status_code >= 400:
+        return False
+    text = resp.text or ""
+    low = text.lower()
+    for marker in _DEAD_LISTING:
+        if marker.isascii():
+            if marker in low:
+                return False
+        elif marker in text:
+            return False
+    return True
+
+
+async def fetch_photo_bytes(session: AsyncSession, url: str) -> bytes | None:
+    """Pull the image ourselves — Telegram's servers are blocked by Grailed/Yahoo CDNs."""
+    url = abs_media_url(url)
+    if not url:
+        return None
+    try:
+        resp = await session.get(
+            url,
+            headers={**HEADERS, "Accept": "image/avif,image/webp,image/*,*/*;q=0.8"},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.content or b""
+        if len(data) < 2500:
+            return None
+        return data
+    except Exception:
+        return None
+
+
 # ─── Scrapers ─────────────────────────────────────────────────────────────────
 
 HEADERS = {
@@ -1015,6 +1308,7 @@ async def scrape_grailed(session: AsyncSession, rule: dict) -> list[dict]:
         for q in profile.get("learned_queries", [])[:5]:
             if q not in queries:
                 queries.append(q)
+    cjk_queries = cjk_search_queries(rule)
 
     regions = rule.get("grailed_regions") or list(GRAILED_REGIONS)
 
@@ -1041,6 +1335,27 @@ async def scrape_grailed(session: AsyncSession, rule: dict) -> list[dict]:
                         hit["_region_label"] = loc_name
                         listings.append(hit)
                 await asyncio.sleep(0.2)
+        # Native-script queries: Asia sellers often title in JP/CN
+        for query in cjk_queries[:8]:
+            payload = {
+                "query": query,
+                "hitsPerPage": 28,
+                "page": 0,
+                "facetFilters": [["location:Asia"]],
+            }
+            resp = await session.post(
+                url,
+                headers=headers,
+                data=json.dumps(payload),
+                timeout=HTTP_TIMEOUT_SECONDS,
+            )
+            if resp.status_code == 200:
+                for hit in resp.json().get("hits", []):
+                    hit = dict(hit)
+                    hit["_region"] = "Asia"
+                    hit["_region_label"] = "Asia"
+                    listings.append(hit)
+            await asyncio.sleep(0.2)
 
         seen_ids = set()
         for item in listings[:200]:
@@ -1052,7 +1367,9 @@ async def scrape_grailed(session: AsyncSession, rule: dict) -> list[dict]:
             title = item.get("title", "")
             price = float(item.get("price_i", 0))
             condition = item.get("condition", "")
-            photo = (
+            if item.get("sold") or item.get("sold_at") or str(item.get("status") or "").lower() == "sold":
+                continue
+            photo = abs_media_url(
                 item.get("cover_photo", {}).get("url")
                 or item.get("cover_photo", {}).get("image_url", "")
             )
@@ -1362,10 +1679,7 @@ async def scrape_yahoo_jp(session: AsyncSession, rule: dict) -> list[dict]:
     """
     results = []
     seen_auction_ids = set()
-    queries = list(dict.fromkeys([
-        *(rule.get("jp_queries") or []),
-        *(rule.get("search_queries") or [])[:2],
-    ]))
+    queries = [q for q in (rule.get("jp_queries") or []) if q]
     min_usd, max_usd = effective_price_bounds(rule, platform="YahooJP")
     min_jpy = int(min_usd * JPY_PER_USD)
     max_jpy = int(max_usd * JPY_PER_USD)
@@ -1375,8 +1689,9 @@ async def scrape_yahoo_jp(session: AsyncSession, rule: dict) -> list[dict]:
             continue
         url = (
             "https://auctions.yahoo.co.jp/search/search"
-            f"?p={quote(query)}&va={quote(query)}&exflg=1&b=1&n=40"
-            f"&price_type=currentprice&min={min_jpy}&max={max_jpy}"
+            f"?p={quote(query)}&va={quote(query)}&exflg=1&b=1&n=50"
+            f"&aucminprice={min_jpy}&aucmaxprice={max_jpy}"
+            "&price_type=currentprice&istatus=1"
         )
         try:
             resp = await session.get(url, headers=HEADERS, timeout=HTTP_TIMEOUT_SECONDS)
@@ -1389,6 +1704,9 @@ async def scrape_yahoo_jp(session: AsyncSession, rule: dict) -> list[dict]:
                 continue
 
             for product in products[:30]:
+                blob = product.get_text(" ", strip=True)
+                if "終了" in blob:
+                    continue
                 title_el = product.select_one(".Product__titleLink")
                 price_el = product.select_one(".Product__priceValue") or product.select_one(".Product__price")
                 photo_el = product.select_one("img")
@@ -1396,14 +1714,21 @@ async def scrape_yahoo_jp(session: AsyncSession, rule: dict) -> list[dict]:
                     continue
 
                 title = title_el.get_text(strip=True)
-                href = title_el.get("href", "")
-                auction_id = href.rstrip("/").split("/")[-1] if href else make_id(title)
-                if auction_id in seen_auction_ids:
+                href = (title_el.get("href") or "").split("?")[0]
+                if href and not href.startswith("http"):
+                    href = urljoin("https://page.auctions.yahoo.co.jp/", href)
+                auction_id = href.rstrip("/").split("/")[-1] if href else ""
+                if not auction_id or auction_id in seen_auction_ids:
                     continue
                 seen_auction_ids.add(auction_id)
                 photo = ""
                 if photo_el:
-                    photo = photo_el.get("src") or photo_el.get("data-src") or ""
+                    photo = abs_media_url(
+                        photo_el.get("src")
+                        or photo_el.get("data-src")
+                        or photo_el.get("data-original")
+                        or ""
+                    )
 
                 try:
                     price_jpy = float(
@@ -1447,7 +1772,8 @@ async def scrape_yahoo_tw(session: AsyncSession, rule: dict) -> list[dict]:
     seen_ids: set[str] = set()
     queries = list(dict.fromkeys([
         *(rule.get("tw_queries") or []),
-        *(rule.get("search_queries") or [])[:2],
+        *(rule.get("cn_queries") or []),
+        *(rule.get("search_queries") or [])[:1],
     ]))
     min_usd, max_usd = effective_price_bounds(rule, platform="YahooTW")
     min_twd = int(min_usd * TWD_PER_USD)
@@ -1497,6 +1823,14 @@ async def scrape_yahoo_tw(session: AsyncSession, rule: dict) -> list[dict]:
                 clean_title = re.sub(r"\$\s*[\d,]+", " ", title)
                 clean_title = re.sub(r"\s+", " ", clean_title).strip()
 
+                if "結束" in clean_title or "已售" in clean_title:
+                    continue
+                parent = link.find_parent(["li", "div", "article"])
+                img = (parent.select_one("img") if parent else None) or link.select_one("img")
+                photo = abs_media_url(
+                    (img.get("src") or img.get("data-src") or "") if img else ""
+                )
+                listing_url = href if href.startswith("http") else f"https://tw.bid.yahoo.com/item/{item_id}"
                 if matches_rule(clean_title, price_usd, "B", rule, platform="YahooTW"):
                     results.append({
                         "platform": "YahooTW",
@@ -1505,9 +1839,10 @@ async def scrape_yahoo_tw(session: AsyncSession, rule: dict) -> list[dict]:
                         "title": clean_title[:180],
                         "price": round(price_usd, 2),
                         "condition": "TW auction",
-                        "photo": "",
+                        "photo": photo,
                         "taste": taste_score(clean_title, rule["brand"]),
-                        "url": href if href.startswith("http") else f"https://tw.bid.yahoo.com/item/{item_id}",
+                        "url": listing_url,
+                        "source_url": listing_url,
                         "region": "TW",
                         "region_label": "Taiwan",
                     })
@@ -1561,6 +1896,13 @@ async def run_sourcing_scan(app):
                 if uid in seen:
                     continue
 
+                live = await listing_is_live(session, item)
+                if not live:
+                    seen[uid] = datetime.now().isoformat()
+                    save_json(SEEN_DB, seen)
+                    log.info("Skip stale listing %s", uid)
+                    continue
+
                 seen[uid]    = datetime.now().isoformat()
                 pending[uid] = normalize_item_brand(item)
                 found += 1
@@ -1569,7 +1911,7 @@ async def run_sourcing_scan(app):
                 save_json(SEEN_DB, seen)
                 save_json(PENDING_DB, pending)
 
-                await send_item_to_telegram(app, item, uid)
+                await send_item_to_telegram(app, item, uid, session)
                 await asyncio.sleep(1)  # avoid rate limiting
 
     save_json(SEEN_DB, seen)
@@ -1577,7 +1919,7 @@ async def run_sourcing_scan(app):
     log.info(f"Scan complete. {found} new items found.")
 
 
-async def send_item_to_telegram(app, item: dict, uid: str):
+async def send_item_to_telegram(app, item: dict, uid: str, session: AsyncSession | None = None):
     """Send a sourced item to Telegram with Approve / Skip buttons."""
     condition_emoji = {
         "Excellent": "🟢", "Very Good": "🟡", "Good": "🟠",
@@ -1592,6 +1934,7 @@ async def send_item_to_telegram(app, item: dict, uid: str):
 
     region = item.get("region_label") or item.get("region") or ""
     region_line = f"📍 Region: {region}\n" if region else ""
+    listing_url = item.get("url") or ""
     text = (
         "feling. sourcing agent\n\n"
         f"🏷 {item['brand']}\n"
@@ -1600,31 +1943,39 @@ async def send_item_to_telegram(app, item: dict, uid: str):
         f"{cond_icon} Condition: {item['condition']}\n"
         f"🌐 Platform: {item['platform']}\n"
         f"{region_line}\n"
-        f"{item['url']}"
+        f"{listing_url}"
     )
 
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("✅ Approve — buy this", callback_data=f"approve:{uid}"),
-            InlineKeyboardButton("❌ Skip", callback_data=f"skip:{uid}"),
-        ]
+    rows = []
+    if listing_url.startswith("http"):
+        rows.append([InlineKeyboardButton("👀 Open listing", url=listing_url)])
+    rows.append([
+        InlineKeyboardButton("✅ Approve — buy this", callback_data=f"approve:{uid}"),
+        InlineKeyboardButton("❌ Skip", callback_data=f"skip:{uid}"),
     ])
+    keyboard = InlineKeyboardMarkup(rows)
+
+    photo_bytes = None
+    if session is not None and item.get("photo"):
+        photo_bytes = await fetch_photo_bytes(session, item["photo"])
 
     try:
-        if item.get("photo"):
+        if photo_bytes:
             await app.bot.send_photo(
                 chat_id=TELEGRAM_CHAT_ID,
-                photo=item["photo"],
+                photo=InputFile(BytesIO(photo_bytes), filename=f"{uid}.jpg"),
                 caption=text[:1024],
                 reply_markup=keyboard,
+                read_timeout=20,
+                write_timeout=20,
             )
-        else:
-            await app.bot.send_message(
-                chat_id=TELEGRAM_CHAT_ID,
-                text=text,
-                reply_markup=keyboard,
-                disable_web_page_preview=False,
-            )
+            return
+        await app.bot.send_message(
+            chat_id=TELEGRAM_CHAT_ID,
+            text=text,
+            reply_markup=keyboard,
+            disable_web_page_preview=False,
+        )
     except Exception as e:
         log.error(f"Telegram send error: {e}")
 
@@ -2037,6 +2388,431 @@ async def run_weekly_report(app=None, days: int = WEEKLY_REPORT_LOOKBACK_DAYS) -
     return html_path
 
 
+# ─── Weekly procurement export (newly approved → Excel) ───────────────────────
+
+def load_last_procurement_export() -> datetime | None:
+    data = load_json(EXPORT_MARKER_DB, {})
+    raw = data.get("last_export_at")
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def save_last_procurement_export(ts: datetime):
+    save_json(EXPORT_MARKER_DB, {"last_export_at": ts.isoformat()})
+
+
+def newly_approved_for_procurement() -> list[dict]:
+    """Items approved since the last procurement export (first run: last N days)."""
+    approved = load_json(APPROVED_DB, [])
+    cutoff = load_last_procurement_export() or (
+        datetime.now() - timedelta(days=PROCUREMENT_EXPORT_LOOKBACK_DAYS)
+    )
+    fresh = []
+    for item in approved:
+        raw = item.get("approved_at") or ""
+        try:
+            ts = datetime.fromisoformat(raw)
+        except ValueError:
+            continue
+        if ts > cutoff:
+            fresh.append(item)
+    fresh.sort(key=lambda x: x.get("approved_at") or "")
+    return fresh
+
+
+def build_procurement_workbook(items: list[dict]) -> Path:
+    """Build a procurement-ready .xlsx of newly approved items."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+
+    tracker = load_json(INVENTORY_STATUS_DB, {})
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Newly Approved"
+
+    headers = [
+        "Brand", "Item", "Platform", "Region", "Condition",
+        "Price (USD)", "Source Link", "Photo", "Approved Date",
+        "Order Status", "Notes",
+    ]
+    ws.append(headers)
+    header_fill = PatternFill("solid", fgColor="1A1A1A")
+    for col in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.alignment = Alignment(vertical="center")
+        cell.fill = header_fill
+
+    for item in items:
+        approved_at = (item.get("approved_at") or "")[:10]
+        tracked = tracker.get(listing_uid(item), {})
+        ws.append([
+            item.get("brand", ""),
+            item.get("title", ""),
+            item.get("platform", ""),
+            item.get("region_label") or item.get("region") or "",
+            item.get("condition", ""),
+            float(item.get("price") or 0),
+            item.get("url", ""),
+            item.get("photo", ""),
+            approved_at,
+            STATUS_LABELS.get(tracked.get("status"), "Approved (not yet received)"),
+            tracked.get("notes", ""),
+        ])
+        r = ws.max_row
+        if item.get("url"):
+            link_cell = ws.cell(row=r, column=7)
+            link_cell.hyperlink = item["url"]
+            link_cell.style = "Hyperlink"
+        ws.cell(row=r, column=6).number_format = "$#,##0.00"
+
+    widths = [20, 45, 12, 14, 14, 12, 42, 42, 14, 14, 28]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.freeze_panes = "A2"
+
+    REPORTS_DIR.mkdir(exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d")
+    path = REPORTS_DIR / f"procurement_newly_approved_{stamp}.xlsx"
+    wb.save(path)
+    return path
+
+
+def send_procurement_email(path: Path, count: int) -> bool:
+    if not (REPORT_EMAIL and SMTP_USER and SMTP_PASSWORD):
+        log.warning("Procurement email skipped — set REPORT_EMAIL, SMTP_USER, SMTP_PASSWORD in .env")
+        return False
+    msg = MIMEMultipart()
+    msg["Subject"] = (
+        f"feling. procurement sheet — {count} new approval"
+        f"{'s' if count != 1 else ''} ({datetime.now().strftime('%Y-%m-%d')})"
+    )
+    msg["From"] = REPORT_FROM or SMTP_USER
+    msg["To"] = REPORT_EMAIL
+    msg.attach(MIMEText(
+        f"Attached: {count} newly approved item(s) since the last export, ready for procurement.",
+        "plain", "utf-8",
+    ))
+    with path.open("rb") as f:
+        part = MIMEApplication(f.read(), _subtype="xlsx")
+    part.add_header("Content-Disposition", "attachment", filename=path.name)
+    msg.attach(part)
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as server:
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.sendmail(msg["From"], [REPORT_EMAIL], msg.as_string())
+    log.info("Procurement sheet emailed to %s (%s items)", REPORT_EMAIL, count)
+    return True
+
+
+async def run_procurement_export(app=None) -> Path | None:
+    """Compile newly approved items since the last export into a procurement Excel sheet."""
+    items = newly_approved_for_procurement()
+    now = datetime.now()
+
+    if not items:
+        log.info("Procurement export: no new approvals since last export.")
+        if app is not None and TELEGRAM_CHAT_ID:
+            await app.bot.send_message(
+                chat_id=TELEGRAM_CHAT_ID,
+                text="📋 Procurement export: no newly approved items since last time.",
+            )
+        save_last_procurement_export(now)
+        return None
+
+    path = build_procurement_workbook(items)
+    emailed = send_procurement_email(path, len(items))
+    save_last_procurement_export(now)
+
+    if app is not None and TELEGRAM_CHAT_ID:
+        summary = (
+            f"📋 Procurement export ready — {len(items)} newly approved item(s)\n"
+            f"Email: {'sent to ' + REPORT_EMAIL if emailed else 'not configured (saved locally)'}\n"
+            f"File: {path.name}"
+        )
+        await app.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=summary)
+        try:
+            with path.open("rb") as f:
+                await app.bot.send_document(
+                    chat_id=TELEGRAM_CHAT_ID,
+                    document=InputFile(f, filename=path.name),
+                    caption="Newly approved — for procurement",
+                )
+        except Exception as e:
+            log.warning("Could not send procurement document: %s", e)
+
+    log.info(
+        "Procurement export written to %s (%s items, email=%s)",
+        path, len(items), emailed,
+    )
+    return path
+
+
+# ─── Shared approve/skip core (used by Telegram buttons AND the team web API) ──
+
+async def _notify_telegram(text: str):
+    """Best-effort notification to the owner's Telegram chat from non-Telegram callers."""
+    if _BOT_REF is None or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        await _BOT_REF.send_message(chat_id=TELEGRAM_CHAT_ID, text=text[:3500])
+    except Exception as e:
+        log.warning("Telegram notify failed: %s", e)
+
+
+async def approve_pending_item(uid: str, item: dict, actor: str) -> dict:
+    """Core approve logic. `actor` is a human-readable source, e.g. "telegram" or
+    "web:jane". Runs the website publish step in the background so callers don't
+    block on it, and notifies Telegram either way so all approvals stay visible
+    in one place regardless of which surface (Telegram or the web /review queue)
+    triggered them.
+    """
+    pending = load_json(PENDING_DB, {})
+    item = normalize_item_brand(item)
+    item["approved_at"] = datetime.now().isoformat()
+    item["approved_by"] = actor
+    approved = upsert_approved(item)
+    save_json(APPROVED_DB, approved)
+
+    pending.pop(uid, None)
+    save_json(PENDING_DB, pending)
+
+    profile = rebuild_taste_profile()
+    category = categorize_item(item)
+
+    async def _publish_later():
+        try:
+            status = await asyncio.to_thread(publish_to_website, item)
+            await _notify_telegram(f"🌐 Website sync: {status}")
+        except Exception as e:
+            log.warning("Background website publish failed: %s", e)
+
+    asyncio.create_task(_publish_later())
+
+    if actor != "telegram":
+        await _notify_telegram(
+            f"✅ Approved via web by {actor.removeprefix('web:')}\n"
+            f"{item.get('brand', '')} — {item.get('title', '')[:80]}\n"
+            f"${float(item.get('price') or 0):.0f} • {item.get('platform', '')} • {category}"
+        )
+
+    return {
+        "item": item,
+        "category": category,
+        "taste_top": profile.get("positive_tokens", [])[:5],
+        "approved_count": profile.get("approved_count", 0),
+    }
+
+
+async def skip_pending_item(uid: str, item: dict, actor: str) -> dict:
+    """Core skip logic, shared the same way as approve_pending_item."""
+    pending = load_json(PENDING_DB, {})
+    skipped = load_json(SKIPPED_DB, [])
+    item = dict(item)
+    item["skipped_at"] = datetime.now().isoformat()
+    item["skipped_by"] = actor
+    skipped.append(item)
+    save_json(SKIPPED_DB, skipped[-200:])
+
+    pending.pop(uid, None)
+    save_json(PENDING_DB, pending)
+    rebuild_taste_profile()
+
+    if actor != "telegram":
+        await _notify_telegram(
+            f"❌ Skipped via web by {actor.removeprefix('web:')}\n"
+            f"{item.get('brand', '')} — {item.get('title', '')[:80]}"
+        )
+
+    return {"item": item}
+
+
+# ─── Team web API (auth-gated: /ops and /review pages talk to this) ───────────
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_user(username: str, password: str) -> bool:
+    users = load_json(USERS_DB, {})
+    record = users.get(username)
+    if not record:
+        return False
+    try:
+        return bcrypt.checkpw(password.encode("utf-8"), record["password_hash"].encode("utf-8"))
+    except Exception:
+        return False
+
+
+def add_user_cli():
+    """`python agent.py --add-user` — create or reset a named team login."""
+    import getpass
+    username = input("Username: ").strip()
+    if not username:
+        print("Username required.")
+        return
+    password = getpass.getpass("Password (min 8 chars): ")
+    if len(password) < 8:
+        print("Password must be at least 8 characters.")
+        return
+    users = load_json(USERS_DB, {})
+    users[username] = {
+        "password_hash": hash_password(password),
+        "created_at": datetime.now().isoformat(),
+    }
+    save_json(USERS_DB, users)
+    print(f"User '{username}' saved to {USERS_DB}.")
+
+
+def create_session(username: str) -> str:
+    token = secrets.token_urlsafe(32)
+    _SESSIONS[token] = {
+        "username": username,
+        "expires": datetime.now() + timedelta(hours=SESSION_TTL_HOURS),
+    }
+    return token
+
+
+def session_username(request: web.Request) -> str | None:
+    token = request.cookies.get("session_id")
+    if not token:
+        return None
+    session = _SESSIONS.get(token)
+    if not session:
+        return None
+    if datetime.now() > session["expires"]:
+        _SESSIONS.pop(token, None)
+        return None
+    return session["username"]
+
+
+@web.middleware
+async def auth_middleware(request: web.Request, handler):
+    if request.path == "/api/auth/login":
+        return await handler(request)
+    username = session_username(request)
+    if not username:
+        return web.json_response({"error": "Not signed in"}, status=401)
+    request["username"] = username
+    return await handler(request)
+
+
+async def api_login(request: web.Request):
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON body"}, status=400)
+    username = str(data.get("username") or "").strip()
+    password = str(data.get("password") or "")
+    if not verify_user(username, password):
+        return web.json_response({"error": "Invalid username or password"}, status=401)
+    token = create_session(username)
+    resp = web.json_response({"username": username})
+    resp.set_cookie(
+        "session_id", token,
+        httponly=True, samesite="Lax", max_age=SESSION_TTL_HOURS * 3600,
+    )
+    return resp
+
+
+async def api_logout(request: web.Request):
+    token = request.cookies.get("session_id")
+    if token:
+        _SESSIONS.pop(token, None)
+    resp = web.json_response({"ok": True})
+    resp.del_cookie("session_id")
+    return resp
+
+
+async def api_me(request: web.Request):
+    return web.json_response({"username": request["username"]})
+
+
+async def api_pending_list(request: web.Request):
+    pending = load_json(PENDING_DB, {})
+    return web.json_response([{**item, "uid": uid} for uid, item in pending.items()])
+
+
+async def api_pending_approve(request: web.Request):
+    uid = request.match_info["uid"]
+    pending = load_json(PENDING_DB, {})
+    item = pending.get(uid)
+    if not item:
+        return web.json_response({"error": "Item not found or already processed"}, status=404)
+    result = await approve_pending_item(uid, item, actor=f"web:{request['username']}")
+    return web.json_response(result["item"])
+
+
+async def api_pending_skip(request: web.Request):
+    uid = request.match_info["uid"]
+    pending = load_json(PENDING_DB, {})
+    item = pending.get(uid)
+    if not item:
+        return web.json_response({"error": "Item not found or already processed"}, status=404)
+    result = await skip_pending_item(uid, item, actor=f"web:{request['username']}")
+    return web.json_response(result["item"])
+
+
+async def api_inventory_list(request: web.Request):
+    approved = load_json(APPROVED_DB, [])
+    tracker = load_json(INVENTORY_STATUS_DB, {})
+    merged = []
+    for item in approved:
+        uid = listing_uid(item)
+        tracked = tracker.get(uid, {})
+        merged.append({
+            "uid": uid,
+            "platform": item.get("platform"),
+            "brand": item.get("brand"),
+            "title": item.get("title"),
+            "cost": float(item.get("price") or 0),
+            "condition": item.get("condition"),
+            "url": item.get("url"),
+            "photo": item.get("photo"),
+            "approved_at": item.get("approved_at"),
+            "status": tracked.get("status", "approved"),
+            **tracked,
+        })
+    return web.json_response(merged)
+
+
+async def api_inventory_patch(request: web.Request):
+    uid = request.match_info["uid"]
+    try:
+        patch = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON body"}, status=400)
+    tracker = load_json(INVENTORY_STATUS_DB, {})
+    updated = {
+        **tracker.get(uid, {}),
+        **patch,
+        "updated_at": datetime.now().isoformat(),
+        "updated_by": request["username"],
+    }
+    tracker[uid] = updated
+    save_json(INVENTORY_STATUS_DB, tracker)
+    return web.json_response({"uid": uid, **updated})
+
+
+def build_web_app() -> web.Application:
+    app = web.Application(middlewares=[auth_middleware])
+    app.router.add_post("/api/auth/login", api_login)
+    app.router.add_post("/api/auth/logout", api_logout)
+    app.router.add_get("/api/auth/me", api_me)
+    app.router.add_get("/api/pending", api_pending_list)
+    app.router.add_post("/api/pending/{uid}/approve", api_pending_approve)
+    app.router.add_post("/api/pending/{uid}/skip", api_pending_skip)
+    app.router.add_get("/api/inventory", api_inventory_list)
+    app.router.add_patch("/api/inventory/{uid}", api_inventory_patch)
+    return app
+
+
 # ─── Telegram Handlers ────────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2057,7 +2833,8 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/rules — show current sourcing rules\n"
         "/pending — show items awaiting decision\n"
         "/approved — reopen all saved buys with Open buttons\n"
-        "/report — weekly cost report (re-sources comps, emails you)",
+        "/report — weekly cost report (re-sources comps, emails you)\n"
+        "/procurement — export newly approved items to Excel (auto every Friday)",
         parse_mode="Markdown"
     )
 
@@ -2090,6 +2867,20 @@ async def cmd_report(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         log.exception("Weekly report failed")
         await update.message.reply_text(f"Report failed: {e}")
+
+
+async def cmd_procurement(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Manual trigger: compile newly approved items into an Excel sheet for procurement."""
+    await update.message.reply_text("📋 Compiling newly approved items into an Excel sheet...")
+    try:
+        path = await run_procurement_export(ctx.application)
+        if path is None:
+            await update.message.reply_text("No newly approved items since the last export.")
+        else:
+            await update.message.reply_text(f"✅ Procurement sheet ready: {path}")
+    except Exception as e:
+        log.exception("Procurement export failed")
+        await update.message.reply_text(f"Procurement export failed: {e}")
 
 
 async def cmd_price(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2244,6 +3035,8 @@ async def cmd_rules(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         lines.append(
             f"🏷 *{r['brand']}*\n"
             f"  Focus: {r.get('focus', 'general')} — {', '.join((r.get('search_queries') or r['keywords'])[:3])}\n"
+            f"  JP: {', '.join((r.get('jp_queries') or [])[:2]) or '—'}\n"
+            f"  CN/TW: {', '.join((r.get('tw_queries') or r.get('cn_queries') or [])[:2]) or '—'}\n"
             f"  US/EU: ${lo:.0f}–${hi:.0f}\n"
             f"  Japan: ${jlo:.0f}–${jhi:.0f}\n"
             f"  Conditions: {', '.join(r['conditions'][:3])}...\n"
@@ -2328,18 +3121,10 @@ async def handle_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     if action == "approve":
-        item = normalize_item_brand(item)
-        item["approved_at"] = datetime.now().isoformat()
-        approved = upsert_approved(item)
-        save_json(APPROVED_DB, approved)
-
-        del pending[uid]
-        save_json(PENDING_DB, pending)
-
-        profile = rebuild_taste_profile()
-        top = ", ".join(profile.get("positive_tokens", [])[:5]) or "still learning"
-        category = categorize_item(item)
-        publish_status = await asyncio.to_thread(publish_to_website, item)
+        result = await approve_pending_item(uid, item, actor="telegram")
+        item = result["item"]
+        category = result["category"]
+        top = ", ".join(result["taste_top"]) or "still learning"
 
         open_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔗 Open listing to buy", url=item["url"])],
@@ -2355,24 +3140,14 @@ async def handle_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"✅ Saved to approved\n"
             f"{item['brand']} — {item['title'][:80]}\n"
             f"${item['price']:.0f} • {item['platform']} • {category}\n\n"
-            f"🌐 Website sync: {publish_status}\n"
-            f"🧠 Taste updated ({profile.get('approved_count', 0)} saves)\n"
+            f"🧠 Taste updated ({result['approved_count']} saves)\n"
             f"Learning: {top}\n\n"
             f"Tap Open to buy.",
             reply_markup=open_keyboard,
         )
 
     elif action == "skip":
-        skipped = load_json(SKIPPED_DB, [])
-        item["skipped_at"] = datetime.now().isoformat()
-        skipped.append(item)
-        # Keep skipped history bounded
-        save_json(SKIPPED_DB, skipped[-200:])
-
-        del pending[uid]
-        save_json(PENDING_DB, pending)
-        rebuild_taste_profile()
-
+        await skip_pending_item(uid, item, actor="telegram")
         try:
             await append_message_status(query, "\n\n❌ Skipped.")
         except Exception as e:
@@ -2381,7 +3156,9 @@ async def handle_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ─── Entrypoint ───────────────────────────────────────────────────────────────
 
-def main():
+async def main():
+    global _BOT_REF
+
     if (
         not TELEGRAM_TOKEN
         or not TELEGRAM_CHAT_ID
@@ -2398,6 +3175,13 @@ def main():
             "and put that in .env instead."
         )
 
+    if not load_json(USERS_DB, {}):
+        log.warning(
+            "No team accounts in %s yet — the /ops and /review web pages won't be "
+            "reachable until you run `python agent.py --add-user`.",
+            USERS_DB,
+        )
+
     async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE):
         log.error("Telegram handler error: %s", context.error, exc_info=context.error)
 
@@ -2412,14 +3196,17 @@ def main():
             BotCommand("pending", "Items awaiting decision"),
             BotCommand("approved", "Reopen saved buys"),
             BotCommand("report", "Weekly cost report + comps"),
+            BotCommand("procurement", "Export newly approved to Excel"),
         ])
 
     app = (
         Application.builder()
         .token(TELEGRAM_TOKEN)
+        .concurrent_updates(True)
         .post_init(post_init)
         .build()
     )
+    _BOT_REF = app.bot
     app.add_error_handler(on_error)
     app.add_handler(CommandHandler("start",    cmd_start))
     app.add_handler(CommandHandler("scan",     cmd_scan))
@@ -2429,7 +3216,8 @@ def main():
     app.add_handler(CommandHandler("rules",    cmd_rules))
     app.add_handler(CommandHandler("pending",  cmd_pending))
     app.add_handler(CommandHandler("approved", cmd_approved))
-    app.add_handler(CommandHandler("report",   cmd_report))
+    app.add_handler(CommandHandler("report",      cmd_report))
+    app.add_handler(CommandHandler("procurement", cmd_procurement))
     app.add_handler(CallbackQueryHandler(handle_button))
 
     scheduler = AsyncIOScheduler()
@@ -2458,18 +3246,57 @@ def main():
         id="weekly_approved_report",
         replace_existing=True,
     )
+    procurement_day = day_map.get(PROCUREMENT_EXPORT_DAY, "fri")
+    scheduler.add_job(
+        run_procurement_export,
+        "cron",
+        day_of_week=procurement_day,
+        hour=PROCUREMENT_EXPORT_HOUR,
+        minute=0,
+        kwargs={"app": app},
+        id="procurement_export",
+        replace_existing=True,
+    )
     scheduler.start()
 
-    log.info(
-        "feling. sourcing agent started. Scanning every %s min. "
-        "Weekly report: %s %02d:00 (email=%s).",
-        POLL_INTERVAL,
-        report_day,
-        WEEKLY_REPORT_HOUR,
-        REPORT_EMAIL or "off",
-    )
-    app.run_polling(drop_pending_updates=True)
+    web_app = build_web_app()
+    runner = web.AppRunner(web_app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", WEB_PORT)
+
+    async with app:
+        await app.start()
+        await app.updater.start_polling(drop_pending_updates=True)
+        await site.start()
+
+        log.info(
+            "feling. sourcing agent started. Scanning every %s min. "
+            "Weekly report: %s %02d:00 (email=%s). "
+            "Procurement export: %s %02d:00 (email=%s). "
+            "Team web API: http://localhost:%s (login required, %s account(s)).",
+            POLL_INTERVAL,
+            report_day,
+            WEEKLY_REPORT_HOUR,
+            REPORT_EMAIL or "off",
+            procurement_day,
+            PROCUREMENT_EXPORT_HOUR,
+            REPORT_EMAIL or "off",
+            WEB_PORT,
+            len(load_json(USERS_DB, {})),
+        )
+
+        try:
+            await asyncio.Event().wait()  # run until cancelled (Ctrl+C / SIGTERM)
+        finally:
+            scheduler.shutdown(wait=False)
+            await runner.cleanup()
+            await app.updater.stop()
+            await app.stop()
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if "--add-user" in sys.argv:
+        add_user_cli()
+    else:
+        asyncio.run(main())
