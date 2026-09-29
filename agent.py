@@ -75,18 +75,48 @@ PROCUREMENT_EXPORT_HOUR = int(os.getenv("PROCUREMENT_EXPORT_HOUR", "9"))
 # hosts) inject PORT and expect the app to bind to it; WEB_PORT is the local
 # dev fallback.
 WEB_PORT = int(os.getenv("PORT") or os.getenv("WEB_PORT", "8787"))
-SEEN_DB          = Path("seen_ids.json")
-PENDING_DB       = Path("pending.json")
-APPROVED_DB      = Path("approved.json")
-SETTINGS_DB      = Path("settings.json")
-TREND_DB         = Path("trend_snapshot.json")
-TASTE_DB         = Path("taste_profile.json")
-SKIPPED_DB       = Path("skipped.json")
-EXPORT_MARKER_DB = Path("last_procurement_export.json")
-INVENTORY_STATUS_DB = Path("inventory_status.json")  # written by web/ /ops page
-USERS_DB = Path("team_users.json")  # named team accounts — see `python agent.py --add-user`
+
+# All state lives under DATA_DIR so it survives redeploys when it points at a
+# mounted volume (e.g. Railway: set DATA_DIR=/data and attach a volume there).
+# Defaults to the repo checkout for local dev, matching prior behavior exactly.
+DATA_DIR = Path(os.getenv("DATA_DIR", "."))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+SEEN_DB          = DATA_DIR / "seen_ids.json"
+PENDING_DB       = DATA_DIR / "pending.json"
+APPROVED_DB      = DATA_DIR / "approved.json"
+SETTINGS_DB      = DATA_DIR / "settings.json"
+TREND_DB         = DATA_DIR / "trend_snapshot.json"
+TASTE_DB         = DATA_DIR / "taste_profile.json"
+SKIPPED_DB       = DATA_DIR / "skipped.json"
+EXPORT_MARKER_DB = DATA_DIR / "last_procurement_export.json"
+INVENTORY_STATUS_DB = DATA_DIR / "inventory_status.json"  # written by web/ /ops page
+USERS_DB = DATA_DIR / "team_users.json"  # named team accounts — see `python agent.py --add-user`
 SESSION_TTL_HOURS = 24 * 7  # web login session lifetime
-REPORTS_DIR      = Path("reports")
+REPORTS_DIR      = DATA_DIR / "reports"
+
+
+def _seed_data_dir_from_repo():
+    """One-time migration for a fresh volume: if DATA_DIR is separate from the
+    repo checkout (e.g. a brand-new Railway volume) and doesn't have a given
+    file yet, but the repo checkout does, copy it over so history already
+    committed to git isn't lost the first time persistent storage is wired up.
+    """
+    if DATA_DIR.resolve() == Path(".").resolve():
+        return
+    for filename in (
+        "seen_ids.json", "pending.json", "approved.json", "settings.json",
+        "trend_snapshot.json", "taste_profile.json", "skipped.json",
+        "last_procurement_export.json", "inventory_status.json", "team_users.json",
+    ):
+        dest = DATA_DIR / filename
+        src = Path(filename)
+        if not dest.exists() and src.exists():
+            dest.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+            log.info("Seeded %s into %s from repo checkout", filename, DATA_DIR)
+
+
+_seed_data_dir_from_repo()
 HTTP_TIMEOUT_SECONDS = 30
 GRAILED_ALGOLIA_APP_ID = "MNRWEFSS2Q"
 GRAILED_ALGOLIA_SEARCH_KEY = "c89dbaddf15fe70e1941a109bf7c2a3d"
@@ -2670,6 +2700,27 @@ def add_user_cli():
     print(f"User '{username}' saved to {USERS_DB}.")
 
 
+def bootstrap_user_from_env():
+    """Non-interactive alternative to --add-user for hosts with no shell access
+    (e.g. Railway). Set BOOTSTRAP_USER / BOOTSTRAP_PASSWORD once, redeploy, then
+    remove them — safe to leave the vars in place since this no-ops once that
+    username already exists.
+    """
+    username = (os.getenv("BOOTSTRAP_USER") or "").strip()
+    password = os.getenv("BOOTSTRAP_PASSWORD") or ""
+    if not username or not password:
+        return
+    users = load_json(USERS_DB, {})
+    if username in users:
+        return
+    users[username] = {
+        "password_hash": hash_password(password),
+        "created_at": datetime.now().isoformat(),
+    }
+    save_json(USERS_DB, users)
+    log.info("Bootstrapped team account '%s' from BOOTSTRAP_USER/BOOTSTRAP_PASSWORD.", username)
+
+
 def create_session(username: str) -> str:
     token = secrets.token_urlsafe(32)
     _SESSIONS[token] = {
@@ -2800,6 +2851,55 @@ async def api_inventory_patch(request: web.Request):
     return web.json_response({"uid": uid, **updated})
 
 
+async def suggest_resale_price(item: dict) -> dict:
+    """Sell-side comp search: what similar pieces are actively asking right now,
+    as opposed to the buy-side weekly report, which re-sources cheaper
+    alternatives for what you *paid*. Reuses the same Grailed comp
+    infrastructure (build_comp_query / search_grailed_comps / title_similarity)
+    that already powers /report.
+    """
+    query = build_comp_query(item)
+    async with AsyncSession(impersonate="chrome", headers=HEADERS) as session:
+        comps = await search_grailed_comps(session, query, limit=30)
+
+    own_url = (item.get("url") or "").rstrip("/")
+    similar = [
+        c for c in comps
+        if float(c.get("price") or 0) > 0
+        and (c.get("url") or "").rstrip("/") != own_url
+        and title_similarity(item.get("title", ""), c.get("title", "")) >= 0.2
+    ]
+    prices = sorted(float(c["price"]) for c in similar)
+
+    suggestion = None
+    if prices:
+        n = len(prices)
+        median = prices[n // 2] if n % 2 else (prices[n // 2 - 1] + prices[n // 2]) / 2
+        suggestion = {
+            "median": round(median, 0),
+            "low": round(prices[0], 0),
+            "high": round(prices[-1], 0),
+            "sample_size": n,
+        }
+
+    similar.sort(key=lambda c: float(c.get("price") or 0))
+    return {"query": query, "suggestion": suggestion, "comps": similar[:8]}
+
+
+async def api_inventory_price_suggestion(request: web.Request):
+    uid = request.match_info["uid"]
+    approved = load_json(APPROVED_DB, [])
+    item = next((i for i in approved if listing_uid(i) == uid), None)
+    if not item:
+        return web.json_response({"error": "Item not found"}, status=404)
+    try:
+        result = await suggest_resale_price(item)
+    except Exception as e:
+        log.warning("Price suggestion failed for %s: %s", uid, e)
+        return web.json_response({"error": "Comp search failed — try again"}, status=502)
+    return web.json_response(result)
+
+
 def build_web_app() -> web.Application:
     app = web.Application(middlewares=[auth_middleware])
     app.router.add_post("/api/auth/login", api_login)
@@ -2810,6 +2910,7 @@ def build_web_app() -> web.Application:
     app.router.add_post("/api/pending/{uid}/skip", api_pending_skip)
     app.router.add_get("/api/inventory", api_inventory_list)
     app.router.add_patch("/api/inventory/{uid}", api_inventory_patch)
+    app.router.add_get("/api/inventory/{uid}/price-suggestion", api_inventory_price_suggestion)
     return app
 
 
@@ -3175,10 +3276,12 @@ async def main():
             "and put that in .env instead."
         )
 
+    bootstrap_user_from_env()
     if not load_json(USERS_DB, {}):
         log.warning(
             "No team accounts in %s yet — the /ops and /review web pages won't be "
-            "reachable until you run `python agent.py --add-user`.",
+            "reachable until you run `python agent.py --add-user`, or set "
+            "BOOTSTRAP_USER / BOOTSTRAP_PASSWORD and redeploy.",
             USERS_DB,
         )
 
