@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatPrice, type PendingItem } from "../types";
-import { useAuth } from "../auth/AuthContext";
 
 type SortKey = "taste" | "heat" | "price";
 
@@ -20,7 +19,6 @@ async function decide(uid: string, action: "approve" | "skip") {
 }
 
 export function ReviewPage() {
-  const { user, logout } = useAuth();
   const [items, setItems] = useState<PendingItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>("taste");
@@ -66,12 +64,7 @@ export function ReviewPage() {
     <div className="ops">
       <header className="ops__head">
         <h1>Review queue</h1>
-        <p className="ops__hint">
-          Signed in as {user?.username}. {items.length} item(s) pending.{" "}
-          <button type="button" className="ops__link" onClick={logout}>
-            Log out
-          </button>
-        </p>
+        <p className="ops__hint">{items.length} item(s) pending.</p>
       </header>
 
       <div className="ops__filters">

@@ -285,6 +285,118 @@
   font-size: 13px;
 }
 
+/* ─── TeamShell — sidebar for /ops + /review ─────────────────────────────── */
+
+.team {
+  display: flex;
+  min-height: 100vh;
+  font-family: var(--sans);
+}
+
+.team__sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  background: var(--ink);
+  color: var(--white);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 18px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.team__brand {
+  font-family: var(--display);
+  font-size: 20px;
+  margin-bottom: 32px;
+}
+
+.team__brand span {
+  color: var(--rose);
+}
+
+.team__brand em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 2px;
+}
+
+.team__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.team__nav a {
+  padding: 9px 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  border-radius: 2px;
+}
+
+.team__nav a.is-active {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--white);
+}
+
+.team__account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.team__account button {
+  color: var(--rose);
+  text-decoration: underline;
+  font-size: 12px;
+}
+
+.team__main {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+@media (max-width: 720px) {
+  .team {
+    flex-direction: column;
+  }
+
+  .team__sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 16px;
+  }
+
+  .team__brand {
+    margin-bottom: 0;
+  }
+
+  .team__nav {
+    flex-direction: row;
+    flex: 1;
+  }
+
+  .team__account {
+    border-top: none;
+    padding-top: 0;
+  }
+}
+
 /* ─── /login ──────────────────────────────────────────────────────────────── */
 
 .login {

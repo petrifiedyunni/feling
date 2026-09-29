@@ -7,7 +7,6 @@ import {
   type InventoryStatus,
   type PriceSuggestion,
 } from "../types";
-import { useAuth } from "../auth/AuthContext";
 
 const API = "/api/inventory";
 
@@ -42,7 +41,6 @@ function margin(item: InventoryItem): number | null {
 }
 
 export function OpsPage() {
-  const { user, logout } = useAuth();
   const [items, setItems] = useState<InventoryItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingUid, setSavingUid] = useState<string | null>(null);
@@ -159,15 +157,7 @@ export function OpsPage() {
       <header className="ops__head">
         <h1>Inventory ops</h1>
         <p className="ops__hint">
-          Signed in as {user?.username}. Only items marked &ldquo;Listed&rdquo; or
-          &ldquo;Sold&rdquo; appear in the shop.{" "}
-          <a className="ops__link" href="/review">
-            Review queue
-          </a>{" "}
-          ·{" "}
-          <button type="button" className="ops__link" onClick={logout}>
-            Log out
-          </button>
+          Only items marked &ldquo;Listed&rdquo; or &ldquo;Sold&rdquo; appear in the shop.
         </p>
       </header>
 

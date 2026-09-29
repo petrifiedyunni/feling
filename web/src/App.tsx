@@ -1,5 +1,6 @@
 import { Routes, Route } from "react-router-dom";
 import { SiteShell } from "./components/SiteShell";
+import { TeamShell } from "./components/TeamShell";
 import { HomePage } from "./pages/HomePage";
 import { ShopPage } from "./pages/ShopPage";
 import { ProductPage } from "./pages/ProductPage";
@@ -17,8 +18,10 @@ export default function App() {
 
       {/* Internal, auth-gated — no public nav, no storefront chrome */}
       <Route element={<RequireAuth />}>
-        <Route path="ops" element={<OpsPage />} />
-        <Route path="review" element={<ReviewPage />} />
+        <Route element={<TeamShell />}>
+          <Route path="ops" element={<OpsPage />} />
+          <Route path="review" element={<ReviewPage />} />
+        </Route>
       </Route>
 
       <Route element={<SiteShell />}>
