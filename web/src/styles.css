@@ -304,12 +304,33 @@
   position: sticky;
   top: 0;
   height: 100vh;
+  transition: width 0.15s ease, padding 0.15s ease;
+}
+
+.team--collapsed .team__sidebar {
+  width: 56px;
+  padding: 24px 8px;
+}
+
+.team__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
+}
+
+.team--collapsed .team__top {
+  flex-direction: column;
+  gap: 14px;
 }
 
 .team__brand {
   font-family: var(--display);
   font-size: 20px;
-  margin-bottom: 32px;
+}
+
+.team--collapsed .team__brand {
+  font-size: 18px;
 }
 
 .team__brand span {
@@ -326,6 +347,18 @@
   margin-top: 2px;
 }
 
+.team__toggle {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px 6px;
+  flex-shrink: 0;
+}
+
+.team__toggle:hover {
+  color: var(--white);
+}
+
 .team__nav {
   display: flex;
   flex-direction: column;
@@ -338,6 +371,25 @@
   font-size: 13px;
   color: rgba(255, 255, 255, 0.75);
   border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.team--collapsed .team__nav a {
+  display: flex;
+  justify-content: center;
+  padding: 9px 0;
+}
+
+.team__nav-short {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  font-size: 12px;
 }
 
 .team__nav a.is-active {
@@ -355,10 +407,21 @@
   color: rgba(255, 255, 255, 0.7);
 }
 
+.team--collapsed .team__account {
+  justify-content: center;
+}
+
+.team__account span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .team__account button {
   color: var(--rose);
   text-decoration: underline;
   font-size: 12px;
+  flex-shrink: 0;
 }
 
 .team__main {
@@ -372,7 +435,8 @@
     flex-direction: column;
   }
 
-  .team__sidebar {
+  .team__sidebar,
+  .team--collapsed .team__sidebar {
     width: 100%;
     height: auto;
     position: static;
@@ -382,8 +446,12 @@
     padding: 14px 16px;
   }
 
-  .team__brand {
+  .team__top {
     margin-bottom: 0;
+  }
+
+  .team--collapsed .team__nav a {
+    justify-content: flex-start;
   }
 
   .team__nav {
