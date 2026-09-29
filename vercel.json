@@ -3,5 +3,8 @@
   "installCommand": "npm install --prefix web",
   "buildCommand": "npm run sync --prefix web && npm run build --prefix web",
   "outputDirectory": "web/dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://web-production-b558d.up.railway.app/api/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
