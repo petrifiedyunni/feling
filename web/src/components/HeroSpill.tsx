@@ -7,13 +7,17 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { Link } from "react-router-dom";
-import catalog from "../data/catalog.json";
+import hero from "../data/hero.json";
 import cutouts from "../data/cutouts.json";
 import type { Product } from "../types";
 import { formatPrice } from "../types";
 import { productImage } from "../productImage";
 
-const products = catalog as Product[];
+// Decorative sampler of recently-approved items (any post-purchase stage),
+// independent of the strict "listed/sold" shop gate — so the homepage still
+// has visuals while items work through the /ops pipeline. Cards for anything
+// not yet actually for sale link to /shop instead of a product page.
+const products = hero as Product[];
 const CUTOUTS = cutouts as Record<string, string>;
 const COLUMBUS_CUTOUT = "/columbus-hero.png";
 
@@ -269,7 +273,7 @@ export function HeroSpill() {
               return (
                 <Link
                   key={item.id}
-                  to={`/piece/${item.slug}`}
+                  to={item.forSale ? `/piece/${item.slug}` : "/shop"}
                   className={`drop-card drop-card--${item.category}`}
                   style={
                     {

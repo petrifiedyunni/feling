@@ -43,6 +43,9 @@ export type Product = {
   era: string;
   status?: InventoryStatus;
   sold?: boolean;
+  /** Only present on hero.json items — whether /piece/:slug actually resolves
+   * (i.e. this item is also in the real, gated shop catalog). */
+  forSale?: boolean;
 };
 
 /** Lifecycle of a physical item after it's been approved for purchase.

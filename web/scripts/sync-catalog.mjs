@@ -7,10 +7,16 @@ const root = path.resolve(__dirname, "../..");
 const approvedPath = path.join(root, "approved.json");
 const inventoryPath = path.join(root, "inventory_status.json");
 const outPath = path.join(__dirname, "../src/data/catalog.json");
+const heroOutPath = path.join(__dirname, "../src/data/hero.json");
 
-// Only these statuses are customer-visible; approved/received/QC/photographed
-// stay internal until someone marks the piece listed via the /ops page.
+// Only these statuses are customer-visible in the *shop*; approved/received/
+// QC/photographed stay internal until someone marks the piece listed via the
+// /ops page. The homepage hero animation is decorative and uses a separate,
+// looser feed (see heroPool below) so the site still has visuals to show
+// while the team works through the post-purchase pipeline.
 const VISIBLE_STATUSES = new Set(["listed", "sold"]);
+const HERO_EXCLUDED_STATUSES = new Set(["returned"]);
+const HERO_MAX_ITEMS = 16;
 
 const SHOE_RE =
   /(heel|heels|shoe|shoes|mule|mules|pump|pumps|boot|boots|sandal|sandals|stiletto|sneaker|sneakers|loafer|loafers|espadrille|wedge|wedges|ballerin|slingback)/i;
@@ -126,6 +132,7 @@ const inventory = fs.existsSync(inventoryPath)
 const seenIds = new Set();
 const seenUrls = new Set();
 const out = [];
+const heroPool = [];
 let hiddenCount = 0;
 
 for (const it of [...items].reverse()) {
@@ -135,15 +142,10 @@ for (const it of [...items].reverse()) {
   if (seenIds.has(id)) continue;
   if (url && seenUrls.has(url)) continue;
 
-  const status = inventory[id]?.status || "approved";
-  if (!VISIBLE_STATUSES.has(status)) {
-    hiddenCount += 1;
-    continue;
-  }
-
   seenIds.add(id);
   if (url) seenUrls.add(url);
 
+  const status = inventory[id]?.status || "approved";
   const title = it.title || "Untitled";
   const slug =
     title
@@ -152,7 +154,7 @@ for (const it of [...items].reverse()) {
       .replace(/^-|-$/g, "")
       .slice(0, 60) + `-${it.id}`;
 
-  out.push({
+  const product = {
     id,
     slug,
     brand: displayBrand(it),
@@ -168,17 +170,34 @@ for (const it of [...items].reverse()) {
     era: "Archive",
     status,
     sold: status === "sold",
-  });
+  };
+
+  if (VISIBLE_STATUSES.has(status)) {
+    out.push(product);
+  } else {
+    hiddenCount += 1;
+  }
+
+  // forSale marks whether /piece/:slug actually resolves — decorative hero
+  // cards for anything else shouldn't deep-link into a page that 404s.
+  if (!HERO_EXCLUDED_STATUSES.has(status)) {
+    heroPool.push({ ...product, forSale: VISIBLE_STATUSES.has(status) });
+  }
 }
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, JSON.stringify(out, null, 2) + "\n");
+
+// Most-recently-approved first, capped — this is a visual sampler, not the shop.
+const hero = [...heroPool].reverse().slice(0, HERO_MAX_ITEMS);
+fs.writeFileSync(heroOutPath, JSON.stringify(hero, null, 2) + "\n");
 
 const counts = out.reduce((acc, p) => {
   acc[p.category] = (acc[p.category] || 0) + 1;
   return acc;
 }, {});
 console.log(`Synced ${out.length} products → src/data/catalog.json`, counts);
+console.log(`Synced ${hero.length} items → src/data/hero.json (homepage visuals)`);
 if (hiddenCount) {
   console.log(
     `${hiddenCount} approved item(s) hidden from shop — not yet "listed" in inventory_status.json (see /ops).`
