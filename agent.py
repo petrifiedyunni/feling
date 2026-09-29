@@ -1895,6 +1895,17 @@ async def run_sourcing_scan(app):
     seen    = load_json(SEEN_DB, {})
     pending = load_json(PENDING_DB, {})
     found   = 0
+    duplicates_filtered = 0
+
+    # Reference pool for near-duplicate detection (relists / same-style lots
+    # that a fresh listing ID slips past seen_ids.json). Grows as new matches
+    # land in `pending` during this same scan so a burst of near-identical
+    # listings collapses to one, not N.
+    dedupe_pool = [
+        *load_json(APPROVED_DB, []),
+        *load_json(SKIPPED_DB, []),
+        *pending.values(),
+    ]
 
     async with AsyncSession(impersonate="chrome", headers=HEADERS) as session:
         for rule in RULES:
@@ -1927,6 +1938,13 @@ async def run_sourcing_scan(app):
                 if uid in seen:
                     continue
 
+                if is_probable_duplicate(item, dedupe_pool):
+                    seen[uid] = datetime.now().isoformat()  # don't re-check forever
+                    save_json(SEEN_DB, seen)
+                    duplicates_filtered += 1
+                    log.info("Skip probable duplicate %s: %s", uid, item.get("title", "")[:60])
+                    continue
+
                 live = await listing_is_live(session, item)
                 if not live:
                     seen[uid] = datetime.now().isoformat()
@@ -1936,6 +1954,7 @@ async def run_sourcing_scan(app):
 
                 seen[uid]    = datetime.now().isoformat()
                 pending[uid] = normalize_item_brand(item)
+                dedupe_pool.append(item)
                 found += 1
 
                 # Persist immediately so Approve/Skip works during a long scan
@@ -1947,7 +1966,10 @@ async def run_sourcing_scan(app):
 
     save_json(SEEN_DB, seen)
     save_json(PENDING_DB, pending)
-    log.info(f"Scan complete. {found} new items found.")
+    log.info(
+        f"Scan complete. {found} new items found, "
+        f"{duplicates_filtered} near-duplicate(s) filtered."
+    )
 
 
 async def send_item_to_telegram(app, item: dict, uid: str, session: AsyncSession | None = None):
@@ -2123,6 +2145,58 @@ def title_similarity(a: str, b: str) -> float:
     if not ta or not tb:
         return 0.0
     return len(ta & tb) / len(ta | tb)
+
+
+DUPLICATE_TITLE_THRESHOLD = 0.72
+DUPLICATE_PRICE_TOLERANCE = 0.25
+
+
+def is_probable_duplicate(item: dict, existing: list[dict]) -> bool:
+    """Catches relists and same-style/lot clutter that seen_ids.json (exact
+    listing-ID match) can't — sellers often relist an expired item under a
+    brand-new listing ID, or have several near-identical units of the same
+    piece up at once. Flags same platform + near-identical title + similar
+    price against anything already pending, approved, or skipped.
+    """
+    title = item.get("title", "")
+    platform = item.get("platform")
+    price = float(item.get("price") or 0)
+    for other in existing:
+        if other.get("platform") != platform:
+            continue
+        other_price = float(other.get("price") or 0)
+        if price and other_price:
+            diff = abs(price - other_price) / max(price, other_price)
+            if diff > DUPLICATE_PRICE_TOLERANCE:
+                continue
+        if title_similarity(title, other.get("title", "")) >= DUPLICATE_TITLE_THRESHOLD:
+            return True
+    return False
+
+
+def dedupe_pending_now() -> dict:
+    """One-time cleanup for clutter already sitting in pending.json before
+    this filter existed. Never touches approved.json — those are real
+    purchase decisions, not candidates for silent removal.
+    """
+    pending = load_json(PENDING_DB, {})
+    reference = [*load_json(APPROVED_DB, []), *load_json(SKIPPED_DB, [])]
+
+    kept: dict[str, dict] = {}
+    removed = 0
+    # Highest taste score first so the "best" copy of each cluster survives.
+    ordered = sorted(
+        pending.items(), key=lambda kv: float(kv[1].get("taste") or 0), reverse=True
+    )
+    for uid, item in ordered:
+        if is_probable_duplicate(item, [*reference, *kept.values()]):
+            removed += 1
+            continue
+        kept[uid] = item
+
+    if removed:
+        save_json(PENDING_DB, kept)
+    return {"removed": removed, "kept": len(kept)}
 
 
 def pick_better_comp(approved: dict, comps: list[dict]) -> dict | None:
@@ -2811,6 +2885,14 @@ async def api_pending_skip(request: web.Request):
     return web.json_response(result["item"])
 
 
+async def api_pending_dedupe(request: web.Request):
+    """One-time cleanup of near-duplicate clutter already in pending.json —
+    future scans filter these automatically (see is_probable_duplicate)."""
+    result = dedupe_pending_now()
+    log.info("Pending dedupe run by %s: %s", request["username"], result)
+    return web.json_response(result)
+
+
 async def api_inventory_list(request: web.Request):
     approved = load_json(APPROVED_DB, [])
     tracker = load_json(INVENTORY_STATUS_DB, {})
@@ -2909,6 +2991,7 @@ def build_web_app() -> web.Application:
     app.router.add_get("/api/pending", api_pending_list)
     app.router.add_post("/api/pending/{uid}/approve", api_pending_approve)
     app.router.add_post("/api/pending/{uid}/skip", api_pending_skip)
+    app.router.add_post("/api/pending/dedupe", api_pending_dedupe)
     app.router.add_get("/api/inventory", api_inventory_list)
     app.router.add_patch("/api/inventory/{uid}", api_inventory_patch)
     app.router.add_get("/api/inventory/{uid}/price-suggestion", api_inventory_price_suggestion)

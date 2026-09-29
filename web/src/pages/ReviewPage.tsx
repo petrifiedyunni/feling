@@ -18,11 +18,22 @@ async function decide(uid: string, action: "approve" | "skip") {
   return res.json();
 }
 
+async function dedupePending(): Promise<{ removed: number; kept: number }> {
+  const res = await fetch("/api/pending/dedupe", {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`dedupe failed: ${res.status}`);
+  return res.json();
+}
+
 export function ReviewPage() {
   const [items, setItems] = useState<PendingItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>("taste");
   const [busyUid, setBusyUid] = useState<string | null>(null);
+  const [dedupeStatus, setDedupeStatus] = useState<string | null>(null);
+  const [dedupeBusy, setDedupeBusy] = useState(false);
 
   function reload() {
     fetchPending()
@@ -31,6 +42,24 @@ export function ReviewPage() {
   }
 
   useEffect(reload, []);
+
+  async function onDedupe() {
+    setDedupeBusy(true);
+    setDedupeStatus(null);
+    try {
+      const { removed } = await dedupePending();
+      setDedupeStatus(
+        removed
+          ? `Removed ${removed} near-duplicate${removed === 1 ? "" : "s"}.`
+          : "No near-duplicates found."
+      );
+      reload();
+    } catch {
+      setDedupeStatus("Cleanup failed — try again.");
+    } finally {
+      setDedupeBusy(false);
+    }
+  }
 
   const sorted = useMemo(() => {
     if (!items) return [];
@@ -64,7 +93,10 @@ export function ReviewPage() {
     <div className="ops">
       <header className="ops__head">
         <h1>Review queue</h1>
-        <p className="ops__hint">{items.length} item(s) pending.</p>
+        <p className="ops__hint">
+          {items.length} item(s) pending.
+          {dedupeStatus && <span className="ops__meta"> {dedupeStatus}</span>}
+        </p>
       </header>
 
       <div className="ops__filters">
@@ -78,6 +110,9 @@ export function ReviewPage() {
             Sort: {key}
           </button>
         ))}
+        <button type="button" onClick={onDedupe} disabled={dedupeBusy}>
+          {dedupeBusy ? "Cleaning up…" : "Clean up duplicates"}
+        </button>
       </div>
 
       {error && <p className="ops__error">{error}</p>}
