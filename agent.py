@@ -134,7 +134,8 @@ PROCUREMENT_EXPORT_LOOKBACK_DAYS = 7  # fallback window before any export has ev
 
 # Mirrors web/src/types.ts STATUS_LABEL — keep both in sync.
 STATUS_LABELS = {
-    "approved": "Approved (not yet received)",
+    "approved": "Approved (not yet purchased)",
+    "purchased": "Purchased (in transit)",
     "received": "Received",
     "qc_passed": "QC passed",
     "photographed": "Photographed",
@@ -2492,7 +2493,7 @@ def build_procurement_workbook(items: list[dict]) -> Path:
             item.get("url", ""),
             item.get("photo", ""),
             approved_at,
-            STATUS_LABELS.get(tracked.get("status"), "Approved (not yet received)"),
+            STATUS_LABELS.get(tracked.get("status"), "Approved (not yet purchased)"),
             tracked.get("notes", ""),
         ])
         r = ws.max_row
