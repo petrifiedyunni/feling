@@ -13,7 +13,9 @@ from rembg import remove
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
-CATALOG = ROOT / "web/src/data/catalog.json"
+# Not catalog.json — that's gated to listed/sold shop items only. Use the
+# full, uncapped, ungated reference instead (see sync-catalog.mjs).
+CATALOG = ROOT / "web/src/data/all-approved.json"
 OUT_DIR = ROOT / "web/public/cutouts"
 MAP_PATH = ROOT / "web/src/data/cutouts.json"
 

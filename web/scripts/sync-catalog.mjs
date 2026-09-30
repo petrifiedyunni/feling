@@ -8,6 +8,13 @@ const approvedPath = path.join(root, "approved.json");
 const inventoryPath = path.join(root, "inventory_status.json");
 const outPath = path.join(__dirname, "../src/data/catalog.json");
 const heroOutPath = path.join(__dirname, "../src/data/hero.json");
+// Full, uncapped reference for scripts (prepare_product_images.py,
+// cutout-drops.py) — NOT imported by any React code, so it never hits the
+// client bundle. Those scripts need every approved item with a computed
+// category, not just what's currently for-sale or the homepage's 16-item
+// sampler, otherwise they wrongly treat "not in the gated shop yet" as
+// "doesn't exist" and prune real cutouts out of cutouts.json.
+const allApprovedOutPath = path.join(__dirname, "../src/data/all-approved.json");
 
 // Only these statuses are customer-visible in the *shop*; approved/received/
 // QC/photographed stay internal until someone marks the piece listed via the
@@ -192,12 +199,17 @@ fs.writeFileSync(outPath, JSON.stringify(out, null, 2) + "\n");
 const hero = [...heroPool].reverse().slice(0, HERO_MAX_ITEMS);
 fs.writeFileSync(heroOutPath, JSON.stringify(hero, null, 2) + "\n");
 
+// Same pool, uncapped — see allApprovedOutPath comment above.
+const allApproved = [...heroPool].reverse();
+fs.writeFileSync(allApprovedOutPath, JSON.stringify(allApproved, null, 2) + "\n");
+
 const counts = out.reduce((acc, p) => {
   acc[p.category] = (acc[p.category] || 0) + 1;
   return acc;
 }, {});
 console.log(`Synced ${out.length} products → src/data/catalog.json`, counts);
 console.log(`Synced ${hero.length} items → src/data/hero.json (homepage visuals)`);
+console.log(`Synced ${allApproved.length} items → src/data/all-approved.json (tooling reference)`);
 if (hiddenCount) {
   console.log(
     `${hiddenCount} approved item(s) hidden from shop — not yet "listed" in inventory_status.json (see /ops).`

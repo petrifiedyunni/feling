@@ -23,7 +23,14 @@ from skimage.measure import label, regionprops
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
-CATALOG = ROOT / "web/src/data/catalog.json"
+# NOT catalog.json — that's gated to only "listed"/"sold" shop items, and
+# used to be read here too. Since a cutout is prepared long before a piece
+# is ever listed, that meant every approval quietly pruned the entire
+# cutouts.json manifest back to empty the moment nothing was listed yet.
+# all-approved.json is the full, uncapped, ungated reference (see
+# sync-catalog.mjs) — same shape, includes every approved item regardless
+# of shop-visibility status.
+CATALOG = ROOT / "web/src/data/all-approved.json"
 OUT_DIR = ROOT / "web/public/cutouts"
 MAP_PATH = ROOT / "web/src/data/cutouts.json"
 MAX_EDGE = 1200
