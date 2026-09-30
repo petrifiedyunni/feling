@@ -23,7 +23,25 @@ const allApprovedOutPath = path.join(__dirname, "../src/data/all-approved.json")
 // while the team works through the post-purchase pipeline.
 const VISIBLE_STATUSES = new Set(["listed", "sold"]);
 const HERO_EXCLUDED_STATUSES = new Set(["returned"]);
-const HERO_MAX_ITEMS = 16;
+
+// Fixed, hand-picked selection for the homepage spill animation — a mix of
+// bags / shoes / clothes with confirmed cutouts. Deliberately NOT tied to
+// "most recently approved" so this never needs regenerating as inventory
+// moves through the pipeline, and never breaks if a recent approval doesn't
+// have a cutout yet. Swap ids here (must exist in all-approved.json with a
+// matching entry in cutouts.json) whenever you want to refresh the look.
+const CURATED_HERO_IDS = [
+  "Grailed_100721565", // Dior by John Galliano SS02 large saddle bag
+  "Grailed_99776361",  // Dior John Galliano SS03 Columbus bag (archive)
+  "Grailed_100271269", // Christian Dior trotter monogram boston bag
+  "Grailed_99725477",  // Roberto Cavalli Y2K jeweled heels
+  "Grailed_99865778",  // Dior by John Galliano SS05 crystal peace heels
+  "Grailed_98346534",  // Dior heels by John Galliano
+  "Grailed_100512160", // Roberto Cavalli CLASS vintage dress
+  "Grailed_100493967", // Dior by John Galliano FW02 red mini dress
+  "Grailed_100341053", // Just Cavalli chiffon dress
+  "Grailed_100278797", // Roberto Cavalli Y2K butterfly rhinestone mesh
+];
 
 const SHOE_RE =
   /(heel|heels|shoe|shoes|mule|mules|pump|pumps|boot|boots|sandal|sandals|stiletto|sneaker|sneakers|loafer|loafers|espadrille|wedge|wedges|ballerin|slingback)/i;
@@ -195,8 +213,16 @@ for (const it of [...items].reverse()) {
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, JSON.stringify(out, null, 2) + "\n");
 
-// Most-recently-approved first, capped — this is a visual sampler, not the shop.
-const hero = [...heroPool].reverse().slice(0, HERO_MAX_ITEMS);
+// Fixed curated selection, in CURATED_HERO_IDS order — falls back to
+// whatever's actually available if an id is ever removed from approved.json,
+// so this can't silently render nothing.
+const heroById = new Map(heroPool.map((p) => [p.id, p]));
+const hero = CURATED_HERO_IDS.map((id) => heroById.get(id)).filter(Boolean);
+if (hero.length < CURATED_HERO_IDS.length) {
+  console.log(
+    `${CURATED_HERO_IDS.length - hero.length} curated hero id(s) not found in approved.json — check CURATED_HERO_IDS in sync-catalog.mjs`
+  );
+}
 fs.writeFileSync(heroOutPath, JSON.stringify(hero, null, 2) + "\n");
 
 // Same pool, uncapped — see allApprovedOutPath comment above.

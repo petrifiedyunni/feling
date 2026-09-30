@@ -13,10 +13,11 @@ import type { Product } from "../types";
 import { formatPrice } from "../types";
 import { productImage } from "../productImage";
 
-// Decorative sampler of recently-approved items (any post-purchase stage),
-// independent of the strict "listed/sold" shop gate — so the homepage still
-// has visuals while items work through the /ops pipeline. Cards for anything
-// not yet actually for sale link to /shop instead of a product page.
+// Fixed, curated selection (see CURATED_HERO_IDS in sync-catalog.mjs) — a
+// persistent visual, not tied to what's currently approved/listed, so it
+// never needs regenerating as inventory moves through the pipeline. Cards
+// for anything not yet actually for sale link to /shop instead of a
+// product page.
 const products = hero as Product[];
 const CUTOUTS = cutouts as Record<string, string>;
 const COLUMBUS_CUTOUT = "/columbus-hero.png";
