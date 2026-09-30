@@ -24,23 +24,25 @@ const allApprovedOutPath = path.join(__dirname, "../src/data/all-approved.json")
 const VISIBLE_STATUSES = new Set(["listed", "sold"]);
 const HERO_EXCLUDED_STATUSES = new Set(["returned"]);
 
-// Fixed, hand-picked selection for the homepage spill animation — a mix of
-// bags / shoes / clothes with confirmed cutouts. Deliberately NOT tied to
-// "most recently approved" so this never needs regenerating as inventory
-// moves through the pipeline, and never breaks if a recent approval doesn't
-// have a cutout yet. Swap ids here (must exist in all-approved.json with a
-// matching entry in cutouts.json) whenever you want to refresh the look.
+// Fixed, hand-picked selection for the homepage spill animation — genuinely
+// iconic, recognizable archive pieces (not just "a vintage dress"), ordered
+// shoes-first then interwoven shoe/bag/clothes so no one category clumps
+// together. Deliberately NOT tied to "most recently approved" so this never
+// needs regenerating as inventory moves through the pipeline, and never
+// breaks if a recent approval doesn't have a cutout yet. Swap ids here (must
+// exist in all-approved.json with a matching entry in cutouts.json) whenever
+// you want to refresh the look.
 const CURATED_HERO_IDS = [
-  "Grailed_100721565", // Dior by John Galliano SS02 large saddle bag
-  "Grailed_99776361",  // Dior John Galliano SS03 Columbus bag (archive)
-  "Grailed_100271269", // Christian Dior trotter monogram boston bag
-  "Grailed_99725477",  // Roberto Cavalli Y2K jeweled heels
-  "Grailed_99865778",  // Dior by John Galliano SS05 crystal peace heels
-  "Grailed_98346534",  // Dior heels by John Galliano
-  "Grailed_100512160", // Roberto Cavalli CLASS vintage dress
-  "Grailed_100493967", // Dior by John Galliano FW02 red mini dress
-  "Grailed_100341053", // Just Cavalli chiffon dress
-  "Grailed_100278797", // Roberto Cavalli Y2K butterfly rhinestone mesh
+  "Grailed_100819973", // shoe  — Dior by Galliano AW03 "Bondage" pump, the defining Y2K Dior shoe
+  "Grailed_100721565", // bag   — Dior by Galliano SS02 large Saddle Bag, the most iconic Dior bag ever made
+  "Grailed_95265956",  // dress — John Galliano Newspaper Print dress, one of fashion's most famous archive prints
+  "Grailed_99865778",  // shoe  — Dior by Galliano SS05 Crystal Peace logo heels, from the Peace runway collection
+  "Grailed_79131981",  // bag   — Dior Columbus Street Chic, Galliano-era signature alongside the Saddle
+  "Grailed_77837211",  // dress — Jean Paul Gaultier cone-bra corset, THE Gaultier silhouette (Madonna's cone bra)
+  "Grailed_99725477",  // shoe  — Roberto Cavalli Y2K jeweled heels, peak Cavalli maximalism
+  "Grailed_105906630", // bag   — Chanel Matelassé Coco Mark, the quilted Chanel classic
+  "Grailed_100373443", // dress — Dior J'Adore, Galliano reinterpreting the 1947 New Look
+  "Grailed_97963708",  // shoe  — Dior monogram heels by Galliano, the Trotter pattern on footwear
 ];
 
 const SHOE_RE =
