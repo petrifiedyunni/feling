@@ -60,6 +60,9 @@ export function SiteShell() {
           <NavLink to="/shop" onClick={closeSide}>
             Accessories
           </NavLink>
+          <NavLink to="/stickers" onClick={closeSide}>
+            Stickers &amp; prints
+          </NavLink>
         </nav>
       </aside>
 

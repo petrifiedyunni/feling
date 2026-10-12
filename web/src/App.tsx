@@ -6,6 +6,7 @@ import { ShopPage } from "./pages/ShopPage";
 import { ProductPage } from "./pages/ProductPage";
 import { CheckoutPage } from "./pages/CheckoutPage";
 import { PlaygroundPage } from "./pages/PlaygroundPage";
+import { StickersPage } from "./pages/StickersPage";
 import { OpsPage } from "./pages/OpsPage";
 import { ReviewPage } from "./pages/ReviewPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="shop" element={<ShopPage />} />
         <Route path="shop/:category" element={<ShopPage />} />
         <Route path="piece/:slug" element={<ProductPage />} />
+        <Route path="stickers" element={<StickersPage />} />
         <Route path="playground" element={<PlaygroundPage />} />
         <Route path="checkout" element={<CheckoutPage />} />
       </Route>

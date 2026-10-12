@@ -1,0 +1,8 @@
+[
+  { "id": "sticker-1", "kind": "sticker", "title": "Sticker sheet I", "note": "Coming soon", "image": null, "price": null },
+  { "id": "sticker-2", "kind": "sticker", "title": "Sticker sheet II", "note": "Coming soon", "image": null, "price": null },
+  { "id": "sticker-3", "kind": "sticker", "title": "Sticker sheet III", "note": "Coming soon", "image": null, "price": null },
+  { "id": "print-1", "kind": "print", "title": "Print I", "note": "Coming soon", "image": null, "price": null },
+  { "id": "print-2", "kind": "print", "title": "Print II", "note": "Coming soon", "image": null, "price": null },
+  { "id": "print-3", "kind": "print", "title": "Print III", "note": "Coming soon", "image": null, "price": null }
+]

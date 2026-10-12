@@ -1484,6 +1484,18 @@ img {
   color: var(--rose-deep);
 }
 
+.tile--extra {
+  cursor: default;
+}
+
+.tile__placeholder {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: clamp(2.5rem, 8vw, 4rem);
+  color: var(--line);
+  user-select: none;
+}
+
 /* ─── Bags lane ───────────────────────────────────────────────────────────── */
 
 .lane {
