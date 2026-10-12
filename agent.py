@@ -189,15 +189,17 @@ STOP_WORDS = {
 
 # Sourcing is strictly accessories: bags, heels, sunnies. Anything that reads as
 # clothing is rejected up front in matches_rule().
+# ("corset" is deliberately not blocked: it appears on real heels, e.g. corset-lace mules.)
 CLOTHING_BLOCK_CJK = [
     "ワンピース", "ドレス", "スカート", "ジャケット", "コート", "トップス",
-    "ブラウス", "ビスチェ", "コルセット", "キャミ", "ボディスーツ", "セットアップ",
+    "ブラウス", "ビスチェ", "キャミ", "ボディスーツ", "セットアップ",
     "洋裝", "洋装", "連身裙", "连身裙", "裙", "外套", "上衣", "胸衣",
     "緊身胸衣", "紧身胸衣", "馬甲", "马甲", "套裝", "套装",
 ]
 _CLOTHING_RE = re.compile(
-    r"\b(dress|gown|skirt|jacket|coat|blouse|bodysuit|camisole|bustier|corset|"
-    r"trousers?|pants|jeans|cardigan|sweater|knitwear|swimsuit|lingerie)\b",
+    r"\b(dress|gown|skirt|jacket|coat|blouse|bodysuit|camisole|bustier|"
+    r"trousers?|pants|jeans|cardigan|sweater|knitwear|swimsuit|swim ?suit|swimwear|"
+    r"lingerie|shirt|t-shirt|blazer|tank ?top|hoodie|vest|shorts|leggings)\b",
     re.I,
 )
 
@@ -2229,6 +2231,39 @@ def dedupe_pending_now() -> dict:
     return {"removed": removed, "kept": len(kept)}
 
 
+# Lanes that only ever sourced bags / heels / sunnies. Anything queued from any
+# other lane (the old clothes lanes, mixed brand lanes, legacy lanes) is kept
+# only if its title reads as a bag, heel or sunglasses.
+_ACCESSORY_LANES = {
+    "chanel rare bags", "dior rare bags", "dior shoes", "dior bags & shoes",
+    "galliano accessories", "archive sunnies",
+}
+
+
+def is_clothing_item(item: dict) -> bool:
+    """True for a queued listing that isn't a bag, heel or pair of sunnies."""
+    title = expand_cjk_hay(str(item.get("title") or "").lower())
+    if is_clothing_title(title):
+        return True
+    lane = str(item.get("brand") or "").strip().lower()
+    if lane not in _ACCESSORY_LANES and categorize_item(item) == "ready-to-wear":
+        return True
+    return False
+
+
+def purge_clothing_from_pending() -> dict:
+    """Drop clothing already queued before sourcing went accessories-only.
+    Leaves seen_ids.json alone so nothing resurfaces, and never touches
+    approved.json or skipped.json (so taste learning isn't polluted).
+    """
+    pending = load_json(PENDING_DB, {})
+    kept = {uid: it for uid, it in pending.items() if not is_clothing_item(it)}
+    removed = len(pending) - len(kept)
+    if removed:
+        save_json(PENDING_DB, kept)
+    return {"removed": removed, "kept": len(kept)}
+
+
 def pick_better_comp(approved: dict, comps: list[dict]) -> dict | None:
     """
     Before tabulating: find a meaningfully better market option.
@@ -2892,7 +2927,11 @@ async def api_me(request: web.Request):
 
 async def api_pending_list(request: web.Request):
     pending = load_json(PENDING_DB, {})
-    return web.json_response([{**item, "uid": uid} for uid, item in pending.items()])
+    return web.json_response([
+        {**item, "uid": uid}
+        for uid, item in pending.items()
+        if not is_clothing_item(item)
+    ])
 
 
 async def api_pending_approve(request: web.Request):
@@ -3391,6 +3430,10 @@ async def main():
         )
 
     bootstrap_user_from_env()
+    purged = purge_clothing_from_pending()
+    if purged["removed"]:
+        log.info("Accessories-only: purged %s clothing items from pending, %s kept",
+                 purged["removed"], purged["kept"])
     if not load_json(USERS_DB, {}):
         log.warning(
             "No team accounts in %s yet — the /ops and /review web pages won't be "
