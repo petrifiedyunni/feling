@@ -50,15 +50,15 @@ def safe_id(pid: str) -> str:
 
 
 def pick_hero_mix(catalog: list[dict], limit: int) -> list[dict]:
-    clothes = [p for p in catalog if p["category"] == "ready-to-wear"]
+    sunnies = [p for p in catalog if p["category"] == "sunnies"]
     bags = [p for p in catalog if p["category"] == "bags"]
     shoes = [p for p in catalog if p["category"] == "shoes"]
     mixed: list[dict] = []
-    n = max(len(clothes), len(bags), len(shoes), 1)
+    n = max(len(sunnies), len(bags), len(shoes), 1)
     for i in range(n):
         if len(mixed) >= limit:
             break
-        for bucket in (clothes, bags, shoes):
+        for bucket in (sunnies, bags, shoes):
             if len(mixed) >= limit:
                 break
             if i < len(bucket):
@@ -219,12 +219,12 @@ def prepare(im: Image.Image) -> Image.Image:
     return cut
 
 
-CUTOUT_CATS = frozenset({"ready-to-wear", "shoes", "bags"})
+CUTOUT_CATS = frozenset({"shoes", "bags", "sunnies"})
 
 
 def pick_apparel(catalog: list[dict], limit: int) -> list[dict]:
     items = [p for p in catalog if p.get("category") in CUTOUT_CATS]
-    order = {"bags": 0, "shoes": 1, "ready-to-wear": 2}
+    order = {"bags": 0, "shoes": 1, "sunnies": 2}
     items.sort(key=lambda p: (order.get(str(p.get("category")), 9), p.get("id", "")))
     return items[:limit]
 

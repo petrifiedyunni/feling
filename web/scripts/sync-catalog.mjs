@@ -24,9 +24,14 @@ const allApprovedOutPath = path.join(__dirname, "../src/data/all-approved.json")
 const VISIBLE_STATUSES = new Set(["listed", "sold"]);
 const HERO_EXCLUDED_STATUSES = new Set(["returned"]);
 
+// Storefront is accessories-only (bags, heels, sunnies). Clothing stays in
+// approved.json / all-approved.json so nothing is lost or re-cut, but it never
+// reaches the shop catalog or the homepage. Flip this to false to bring it back.
+const ACCESSORIES_ONLY = true;
+
 // Fixed, hand-picked selection for the homepage spill animation — genuinely
-// iconic, recognizable archive pieces (not just "a vintage dress"), ordered
-// shoes-first then interwoven shoe/bag/clothes so no one category clumps
+// iconic, recognizable archive pieces, ordered
+// shoes-first then interwoven shoe/bag so no one category clumps
 // together. Deliberately NOT tied to "most recently approved" so this never
 // needs regenerating as inventory moves through the pipeline, and never
 // breaks if a recent approval doesn't have a cutout yet. Swap ids here (must
@@ -35,18 +40,17 @@ const HERO_EXCLUDED_STATUSES = new Set(["returned"]);
 const CURATED_HERO_IDS = [
   "Grailed_100819973", // shoe  — Dior by Galliano AW03 "Bondage" pump, the defining Y2K Dior shoe
   "Grailed_100721565", // bag   — Dior by Galliano SS02 large Saddle Bag, the most iconic Dior bag ever made
-  "Grailed_95265956",  // dress — John Galliano Newspaper Print dress, one of fashion's most famous archive prints
   "Grailed_99865778",  // shoe  — Dior by Galliano SS05 Crystal Peace logo heels, from the Peace runway collection
   "Grailed_79131981",  // bag   — Dior Columbus Street Chic, Galliano-era signature alongside the Saddle
-  "Grailed_77837211",  // dress — Jean Paul Gaultier cone-bra corset, THE Gaultier silhouette (Madonna's cone bra)
   "Grailed_99725477",  // shoe  — Roberto Cavalli Y2K jeweled heels, peak Cavalli maximalism
   "Grailed_105906630", // bag   — Chanel Matelassé Coco Mark, the quilted Chanel classic
-  "Grailed_100373443", // dress — Dior J'Adore, Galliano reinterpreting the 1947 New Look
   "Grailed_97963708",  // shoe  — Dior monogram heels by Galliano, the Trotter pattern on footwear
 ];
 
 const SHOE_RE =
   /(heel|heels|shoe|shoes|mule|mules|pump|pumps|boot|boots|sandal|sandals|stiletto|sneaker|sneakers|loafer|loafers|espadrille|wedge|wedges|ballerin|slingback)/i;
+const SUNNY_RE =
+  /(sunglass|sunnies|\bshades\b|eyewear|サングラス|太陽眼鏡|太阳镜|墨鏡|墨镜)/i;
 const BAG_RE =
   /(handbag|clutch|purse|tote|cambon|columbus|trotter|crossbody|baguette|boston|shoulder bag|saddle bag|\bsaddle\b|flap bag|\bbag\b)/i;
 
@@ -63,10 +67,13 @@ function cleanBrandLabel(brand) {
 export function categorize(item) {
   const title = String(item.title || "");
   const brand = cleanBrandLabel(item.brand);
-  // Title decides first — never let lane names override a heel listing
+  // Title decides first — never let lane names override a heel listing.
+  // Sunglasses first so "Dior Saddle sunglasses" isn't read as a bag.
+  if (SUNNY_RE.test(title)) return "sunnies";
   if (SHOE_RE.test(title)) return "shoes";
   if (BAG_RE.test(title)) return "bags";
   const hay = `${brand} ${title}`;
+  if (SUNNY_RE.test(hay)) return "sunnies";
   if (SHOE_RE.test(hay)) return "shoes";
   if (BAG_RE.test(hay)) return "bags";
   return "ready-to-wear";
@@ -198,6 +205,14 @@ for (const it of [...items].reverse()) {
     status,
     sold: status === "sold",
   };
+
+  const clothingHidden = ACCESSORIES_ONLY && product.category === "ready-to-wear";
+
+  if (clothingHidden) {
+    // Keep it in the tooling reference (all-approved.json) only.
+    heroPool.push({ ...product, forSale: false });
+    continue;
+  }
 
   if (VISIBLE_STATUSES.has(status)) {
     out.push(product);

@@ -35,7 +35,7 @@ export type Product = {
   title: string;
   price: number;
   condition: string;
-  category: "bags" | "shoes" | "ready-to-wear" | string;
+  category: "bags" | "shoes" | "sunnies" | "ready-to-wear" | string;
   photo: string;
   url: string;
   platform: string;

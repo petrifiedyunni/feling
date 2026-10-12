@@ -13,6 +13,7 @@ const products = catalog as Product[];
 const CATEGORY_LABEL: Record<string, string> = {
   bags: "Bags",
   shoes: "Shoes",
+  sunnies: "Sunnies",
   "ready-to-wear": "Clothing",
 };
 

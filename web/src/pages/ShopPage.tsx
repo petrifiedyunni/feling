@@ -10,14 +10,14 @@ const FILTERS = [
   { key: "all", label: "All", path: "/shop" },
   { key: "bags", label: "Bags", path: "/shop/bags" },
   { key: "shoes", label: "Shoes", path: "/shop/shoes" },
-  { key: "ready-to-wear", label: "Clothing", path: "/shop/ready-to-wear" },
+  { key: "sunnies", label: "Sunnies", path: "/shop/sunnies" },
 ];
 
 const TITLES: Record<string, string> = {
   all: "Shop",
   bags: "Bags",
   shoes: "Shoes",
-  "ready-to-wear": "Clothing",
+  sunnies: "Sunnies",
 };
 
 export function ShopPage() {

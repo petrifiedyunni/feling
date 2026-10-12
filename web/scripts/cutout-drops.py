@@ -34,16 +34,16 @@ def safe_id(pid: str) -> str:
 
 
 def pick_hero_mix(catalog: list[dict], limit: int = 12) -> list[dict]:
-    clothes = [p for p in catalog if p["category"] == "ready-to-wear"]
+    sunnies = [p for p in catalog if p["category"] == "sunnies"]
     bags = [p for p in catalog if p["category"] == "bags"]
     shoes = [p for p in catalog if p["category"] == "shoes"]
     mixed: list[dict] = []
-    n = max(len(clothes), len(bags), len(shoes))
+    n = max(len(sunnies), len(bags), len(shoes))
     for i in range(n):
         if len(mixed) >= limit:
             break
-        if i < len(clothes):
-            mixed.append(clothes[i])
+        if i < len(sunnies):
+            mixed.append(sunnies[i])
         if len(mixed) >= limit:
             break
         if i < len(bags):

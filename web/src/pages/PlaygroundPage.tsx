@@ -20,17 +20,19 @@ type Placed = {
 };
 
 type Edge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
-type InvTab = "clothes" | "shoes" | "bags";
+type InvTab = "shoes" | "bags" | "sunnies";
 
 const EDGES: Edge[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
 const TABS: { id: InvTab; label: string }[] = [
-  { id: "clothes", label: "Clothes" },
   { id: "shoes", label: "Shoes" },
   { id: "bags", label: "Bags" },
+  { id: "sunnies", label: "Sunnies" },
 ];
 
 function slotPose(p: Product): Pick<Placed, "x" | "y" | "scale" | "rot" | "z"> {
   const t = `${p.title} ${p.category}`.toLowerCase();
+  if (p.category === "sunnies")
+    return { x: 48, y: 16, scale: 0.3, rot: 0, z: 32 };
   if (p.category === "shoes" || /heel|shoe|boot|sandal|mule|pump/.test(t))
     return { x: 48, y: 92, scale: 0.42, rot: 0, z: 30 };
   if (p.category === "bags" || /\bbag\b|tote|clutch|purse/.test(t))
@@ -67,7 +69,7 @@ export function PlaygroundPage() {
     typeof window === "undefined" ? [] : load()
   );
   const [active, setActive] = useState<string | null>(null);
-  const [tab, setTab] = useState<InvTab>("clothes");
+  const [tab, setTab] = useState<InvTab>("shoes");
 
   placedRef.current = placed;
 
@@ -75,7 +77,7 @@ export function PlaygroundPage() {
   const items = useMemo(() => {
     if (tab === "shoes") return products.filter((p) => p.category === "shoes");
     if (tab === "bags") return products.filter((p) => p.category === "bags");
-    return products.filter((p) => p.category === "ready-to-wear");
+    return products.filter((p) => p.category === "sunnies");
   }, [tab]);
 
   const activePiece = placed.find((p) => p.uid === active);

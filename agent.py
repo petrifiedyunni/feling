@@ -168,7 +168,7 @@ TREND_SIGNALS = [
     # Chanel / Dior rare bags
     "chanel", "2.55", "classic flap", "jumbo", "kelly", "saddle", "trotter",
     "columbus", "rare", "archive", "limited",
-    # Dior shoes + clothes
+    # Dior heels
     "dior", "galliano", "bondage", "harness", "heel", "pump", "oblique",
     # Cavalli / Gaultier / Tom Ford Gucci
     "cavalli", "leopard", "python", "animal print", "gaultier", "cone bra",
@@ -184,16 +184,27 @@ STOP_WORDS = {
 
 # ─── Sourcing Rules ───────────────────────────────────────────────────────────
 # Aesthetic north stars: Isle of Monday, Jean Vintage, Break Archive
-# Chanel rare bags • Dior rare bags / shoes / clothes
-# Cavalli • Galliano • Tom Ford Gucci • Jean Paul Gaultier
+# Chanel rare bags • Dior rare bags / heels • archive sunnies
+# Cavalli • Galliano • Tom Ford Gucci • Jean Paul Gaultier — accessories only, no clothes
 
-CLOTHES_INCLUDE = [
-    "dress", "mini dress", "slip dress", "gown", "skirt", "mini skirt",
-    "corset", "bustier", "camisole", "halter", "bodysuit", "top", "blouse",
-    "set", "co-ord", "coord", "two piece", "lace", "mesh", "sheer",
-    "silk", "satin", "ruched", "cutout", "bodycon", "low rise",
-    "jacket", "coat",
+# Sourcing is strictly accessories: bags, heels, sunnies. Anything that reads as
+# clothing is rejected up front in matches_rule().
+CLOTHING_BLOCK_CJK = [
+    "ワンピース", "ドレス", "スカート", "ジャケット", "コート", "トップス",
+    "ブラウス", "ビスチェ", "コルセット", "キャミ", "ボディスーツ", "セットアップ",
+    "洋裝", "洋装", "連身裙", "连身裙", "裙", "外套", "上衣", "胸衣",
+    "緊身胸衣", "紧身胸衣", "馬甲", "马甲", "套裝", "套装",
 ]
+_CLOTHING_RE = re.compile(
+    r"\b(dress|gown|skirt|jacket|coat|blouse|bodysuit|camisole|bustier|corset|"
+    r"trousers?|pants|jeans|cardigan|sweater|knitwear|swimsuit|lingerie)\b",
+    re.I,
+)
+
+
+def is_clothing_title(text: str) -> bool:
+    return bool(_CLOTHING_RE.search(text)) or any(t in text for t in CLOTHING_BLOCK_CJK)
+
 
 BAGS_INCLUDE = [
     "bag", "handbag", "clutch", "shoulder bag", "tote", "purse", "pochette",
@@ -203,6 +214,11 @@ BAGS_INCLUDE = [
 SHOES_INCLUDE = [
     "heels", "heel", "sandal", "mule", "stiletto", "pump", "pumps",
     "boot", "boots", "shoe", "shoes",
+]
+
+SUNNIES_INCLUDE = [
+    "sunglasses", "sunglass", "sunnies", "shades", "eyewear",
+    "サングラス", "太陽眼鏡", "太阳镜", "墨鏡", "墨镜",
 ]
 
 BAGS_SHOES_INCLUDE = BAGS_INCLUDE + SHOES_INCLUDE
@@ -232,19 +248,15 @@ CONDITIONS = [
 ]
 
 JP_FEMININE_INCLUDE = [
-    "ワンピース", "ドレス", "スカート", "バッグ", "ハンドバッグ", "クラッチ",
-    "ヒール", "パンプス", "ミュール", "サンダル", "トップス", "ブラウス",
-    "ビスチェ", "コルセット", "キャミ", "ボディスーツ", "セットアップ",
-    "ジャケット", "コート", "レース", "シルク", "サテン", "靴",
+    "バッグ", "ハンドバッグ", "クラッチ", "ヒール", "パンプス", "ミュール",
+    "サンダル", "靴", "サングラス",
 ]
 
 # Traditional (TW) + Simplified — Yahoo TW / Grailed Asia / mixed titles
 CN_FEMININE_INCLUDE = [
-    "洋裝", "洋装", "連身裙", "连身裙", "裙子", "上衣", "外套",
     "包", "手袋", "手拿包", "肩背包", "馬鞍包", "马鞍包",
     "高跟鞋", "跟鞋", "穆勒鞋", "涼鞋", "凉鞋", "靴", "鞋",
-    "胸衣", "緊身胸衣", "紧身胸衣", "馬甲", "马甲", "網紗", "网纱",
-    "套裝", "套装",
+    "太陽眼鏡", "太阳镜", "墨鏡", "墨镜",
 ]
 
 CJK_SHAPE_INCLUDE = JP_FEMININE_INCLUDE + CN_FEMININE_INCLUDE
@@ -311,6 +323,11 @@ CJK_ALIASES = {
     "连身裙": ["dress"],
     "馬鞍包": ["saddle", "bag"],
     "马鞍包": ["saddle", "bag"],
+    "サングラス": ["sunglasses", "shades"],
+    "太陽眼鏡": ["sunglasses", "shades"],
+    "太阳镜": ["sunglasses", "shades"],
+    "墨鏡": ["sunglasses", "shades"],
+    "墨镜": ["sunglasses", "shades"],
     "古董": ["vintage"],
     "稀有": ["rare"],
     "豹紋": ["leopard"],
@@ -488,99 +505,48 @@ RULES = [
         ],
     },
     {
-        "brand": "Dior Clothes",
-        "focus": "clothes",
-        "keywords": [
-            "dior", "christian dior", "galliano", "ディオール", "ガリアーノ",
-            "迪奧", "迪奥", "加利亞諾", "加利亚诺",
-        ],
-        "search_queries": [
-            "dior galliano dress",
-            "christian dior vintage dress",
-            "dior by john galliano",
-            "dior newspaper print",
-            "dior columbus dress",
-            "dior corset vintage",
-            "dior runway dress y2k",
-        ],
-        "jp_queries": [
-            "ディオール ガリアーノ ワンピース",
-            "ディオール ドレス ヴィンテージ",
-            "ガリアーノ ディオール",
-            "ディオール コルセット",
-            "ガリアーノ期 ワンピース",
-            "ディオール ガリアーノ トップス",
-        ],
-        "tw_queries": [
-            "迪奧 加利亞諾 洋裝",
-            "迪奧 古董 洋裝",
-            "Dior Galliano dress",
-            "迪奧 胸衣",
-        ],
-        "cn_queries": [
-            "迪奥 加利亚诺 洋装",
-            "迪奥 连衣裙 古董",
-            "迪奥 Galliano",
-        ],
-        "max_price": 1200,
-        "min_price": 60,
-        "jp_min_price": 25,
-        "jp_max_price": 500,
-        "conditions": CONDITIONS,
-        "include": CLOTHES_INCLUDE + JP_FEMININE_INCLUDE,
-        "style": ARCHIVE_SLAY_INCLUDE + ["ガリアーノ", "ディオール", "アーカイブ"],
-        "exclude": STYLE_EXCLUDE + ["sneaker", "wallet", "bag", "heel"],
-        "era": [
-            "galliano", "archive", "vintage", "runway", "newspaper",
-            "columbus", "1997", "1998", "1999", "2000", "2001", "2002",
-            "2003", "2004", "2005", "90s", "2000s", "y2k", "ガリアーノ",
-        ],
-    },
-    {
         "brand": "Roberto Cavalli",
-        "focus": "clothes",
+        "focus": "bags_shoes",
         "keywords": [
             "cavalli", "just cavalli", "roberto cavalli",
             "カヴァリ", "カバリ", "ロベルトカヴァリ", "ジャストカヴァリ",
             "卡沃利", "卡瓦利",
         ],
         "search_queries": [
-            "roberto cavalli animal print dress",
-            "cavalli leopard dress",
-            "cavalli python dress",
-            "roberto cavalli vintage dress",
-            "cavalli corset",
-            "cavalli silk set",
-            "just cavalli y2k dress",
-            "cavalli runway dress",
+            "roberto cavalli leopard bag",
+            "cavalli python handbag",
+            "roberto cavalli vintage bag",
+            "just cavalli bag y2k",
+            "roberto cavalli vintage heels",
+            "cavalli animal print heels",
+            "cavalli jeweled heels",
+            "cavalli snake heels",
         ],
         "jp_queries": [
-            "ロベルトカヴァリ ワンピース",
-            "カヴァリ レオパード",
-            "カヴァリ アニマル",
-            "ジャストカヴァリ ドレス",
-            "カヴァリ セットアップ",
-            "ロベルトカヴァリ ドレス",
-            "カヴァリ コルセット",
+            "ロベルトカヴァリ バッグ",
+            "カヴァリ レオパード バッグ",
+            "カヴァリ ヒール",
+            "カヴァリ パンプス",
+            "ロベルトカヴァリ サンダル",
+            "ジャストカヴァリ バッグ",
         ],
         "tw_queries": [
-            "Cavalli 豹紋",
-            "Cavalli 洋裝",
-            "Roberto Cavalli 古董",
-            "卡沃利 洋裝",
-            "Cavalli 套裝",
+            "Cavalli 包",
+            "Cavalli 高跟鞋",
+            "Roberto Cavalli 古董 包",
+            "卡沃利 高跟鞋",
         ],
         "cn_queries": [
-            "卡沃利 连衣裙",
-            "Cavalli 豹纹",
-            "罗伯托卡沃利",
+            "卡沃利 包",
+            "卡沃利 高跟鞋",
+            "罗伯托卡沃利 包",
         ],
         "max_price": 700,
         "min_price": 40,
         "jp_min_price": 15,
         "jp_max_price": 350,
         "conditions": CONDITIONS,
-        "include": CLOTHES_INCLUDE + JP_FEMININE_INCLUDE,
+        "include": BAGS_SHOES_INCLUDE + JP_FEMININE_INCLUDE + CN_FEMININE_INCLUDE,
         "style": ARCHIVE_SLAY_INCLUDE + ["カヴァリ", "レオパード", "アニマル", "パイソン"],
         "exclude": STYLE_EXCLUDE + ["wallet", "sneaker"],
         "era": [
@@ -590,44 +556,42 @@ RULES = [
         ],
     },
     {
-        "brand": "Galliano Clothes",
-        "focus": "clothes",
+        "brand": "Galliano Accessories",
+        "focus": "bags_shoes",
         "keywords": [
             "galliano", "john galliano", "ガリアーノ", "ジョンガリアーノ",
             "加利亞諾", "加利亚诺",
         ],
         "search_queries": [
-            "john galliano vintage dress",
-            "galliano runway dress",
-            "galliano corset",
-            "galliano newspaper print",
-            "john galliano silk dress",
-            "galliano archive dress",
+            "john galliano vintage bag",
+            "galliano archive handbag",
+            "john galliano heels",
+            "galliano vintage shoes",
+            "galliano newspaper print bag",
+            "galliano runway heels",
         ],
         "jp_queries": [
-            "ジョンガリアーノ ワンピース",
-            "ガリアーノ ドレス",
-            "ガリアーノ アーカイブ",
-            "ガリアーノ コルセット",
-            "ジョンガリアーノ ヴィンテージ",
+            "ジョンガリアーノ バッグ",
+            "ガリアーノ ヒール",
+            "ガリアーノ パンプス",
+            "ガリアーノ アーカイブ バッグ",
+            "ジョンガリアーノ ヴィンテージ 靴",
         ],
         "tw_queries": [
-            "加利亞諾 洋裝",
-            "Galliano 洋裝",
-            "John Galliano 古董",
-            "Galliano 胸衣",
+            "加利亞諾 包",
+            "Galliano 高跟鞋",
+            "John Galliano 古董 包",
         ],
         "cn_queries": [
-            "加利亚诺 洋装",
-            "John Galliano 连衣裙",
-            "Galliano 古董",
+            "加利亚诺 包",
+            "John Galliano 高跟鞋",
         ],
         "max_price": 1100,
         "min_price": 50,
         "jp_min_price": 20,
         "jp_max_price": 450,
         "conditions": CONDITIONS,
-        "include": CLOTHES_INCLUDE + JP_FEMININE_INCLUDE,
+        "include": BAGS_SHOES_INCLUDE + JP_FEMININE_INCLUDE + CN_FEMININE_INCLUDE,
         "style": ARCHIVE_SLAY_INCLUDE + ["ガリアーノ", "アーカイブ"],
         "exclude": STYLE_EXCLUDE + ["sneaker", "wallet"],
         "era": [
@@ -638,36 +602,36 @@ RULES = [
     },
     {
         "brand": "Tom Ford Gucci",
-        "focus": "clothes",
+        "focus": "bags_shoes",
         "keywords": [
             "gucci", "tom ford", "グッチ", "トムフォード",
             "古馳", "古驰", "湯姆福特", "汤姆福特",
         ],
         "search_queries": [
-            "tom ford gucci dress",
-            "gucci by tom ford",
-            "tom ford gucci vintage",
-            "gucci jackie bag tom ford",
-            "gucci bamboo tom ford",
-            "tom ford gucci horsebit",
-            "gucci tom ford y2k",
+            "tom ford gucci bag",
+            "gucci by tom ford handbag",
+            "gucci jackie bag vintage",
+            "gucci bamboo bag tom ford",
+            "tom ford gucci horsebit heels",
+            "gucci tom ford y2k heels",
+            "tom ford gucci vintage shoes",
         ],
         "jp_queries": [
-            "グッチ トムフォード",
-            "トムフォード グッチ ドレス",
+            "グッチ トムフォード バッグ",
             "グッチ ジャッキー",
             "グッチ バンブー ヴィンテージ",
-            "トムフォード グッチ ワンピース",
+            "トムフォード グッチ ヒール",
+            "トムフォード グッチ パンプス",
         ],
         "tw_queries": [
-            "古馳 湯姆福特",
+            "古馳 湯姆福特 包",
             "Gucci Tom Ford",
-            "古馳 古董",
-            "Gucci Jackie 包",
+            "古馳 Jackie 包",
+            "古馳 高跟鞋 古董",
         ],
         "cn_queries": [
-            "古驰 汤姆福特",
-            "古驰 古董",
+            "古驰 汤姆福特 包",
+            "古驰 古董 包",
             "Gucci Tom Ford",
         ],
         "max_price": 1200,
@@ -675,7 +639,7 @@ RULES = [
         "jp_min_price": 25,
         "jp_max_price": 500,
         "conditions": CONDITIONS,
-        "include": CLOTHES_INCLUDE + BAGS_SHOES_INCLUDE + JP_FEMININE_INCLUDE,
+        "include": BAGS_SHOES_INCLUDE + JP_FEMININE_INCLUDE + CN_FEMININE_INCLUDE,
         "style": ARCHIVE_SLAY_INCLUDE + [
             "トムフォード", "グッチ", "ジャッキー", "バンブー", "アーカイブ",
         ],
@@ -688,54 +652,111 @@ RULES = [
     },
     {
         "brand": "Jean Paul Gaultier",
-        "focus": "clothes",
+        "focus": "bags_shoes",
         "keywords": [
             "gaultier", "jean paul gaultier",
             "ゴルチエ", "ジャンポールゴルチエ",
             "高緹耶", "高缇耶", "高提耶",
         ],
         "search_queries": [
-            "jean paul gaultier dress",
-            "gaultier corset vintage",
-            "gaultier mesh top",
-            "jean paul gaultier tattoo",
-            "gaultier conical bra",
-            "jpg vintage dress",
-            "gaultier archive dress",
+            "jean paul gaultier vintage bag",
+            "gaultier archive handbag",
+            "gaultier vintage heels",
+            "jean paul gaultier heels",
+            "gaultier mesh bag",
+            "jpg vintage shoes",
         ],
         "jp_queries": [
-            "ジャンポールゴルチエ ワンピース",
-            "ゴルチエ コルセット",
-            "ゴルチエ メッシュ",
-            "ゴルチエ アーカイブ",
-            "ゴルチエ ドレス",
-            "ジャンポールゴルチエ ヴィンテージ",
+            "ゴルチエ バッグ",
+            "ジャンポールゴルチエ バッグ",
+            "ゴルチエ ヒール",
+            "ゴルチエ パンプス",
+            "ジャンポールゴルチエ ヴィンテージ 靴",
         ],
         "tw_queries": [
-            "高緹耶 洋裝",
-            "高緹耶 胸衣",
-            "JPG 洋裝",
-            "Gaultier 古董",
-            "高提耶 網紗",
+            "高緹耶 包",
+            "高緹耶 高跟鞋",
+            "Gaultier 古董 包",
         ],
         "cn_queries": [
-            "高缇耶 连衣裙",
-            "高缇耶 胸衣",
-            "Gaultier 网纱",
+            "高缇耶 包",
+            "高缇耶 高跟鞋",
         ],
         "max_price": 900,
         "min_price": 40,
         "jp_min_price": 15,
         "jp_max_price": 400,
         "conditions": CONDITIONS,
-        "include": CLOTHES_INCLUDE + JP_FEMININE_INCLUDE,
+        "include": BAGS_SHOES_INCLUDE + JP_FEMININE_INCLUDE + CN_FEMININE_INCLUDE,
         "style": ARCHIVE_SLAY_INCLUDE + ["ゴルチエ", "アーカイブ"],
         "exclude": STYLE_EXCLUDE + ["sneaker", "wallet"],
         "era": [
-            "archive", "vintage", "corset", "tattoo", "mesh", "cone",
+            "archive", "vintage", "tattoo", "mesh", "cone",
             "90s", "2000s", "y2k", "runway",
             "1995", "1996", "1997", "1998", "1999", "2000", "2001", "2002",
             "ゴルチエ", "アーカイブ",
+        ],
+    },
+    {
+        "brand": "Archive Sunnies",
+        "focus": "sunnies",
+        "keywords": [
+            "chanel", "dior", "christian dior", "galliano", "cavalli",
+            "gaultier", "gucci", "tom ford",
+            "シャネル", "ディオール", "ガリアーノ", "カヴァリ", "ゴルチエ",
+            "グッチ", "トムフォード",
+            "香奈兒", "香奈尔", "迪奧", "迪奥", "加利亞諾", "加利亚诺",
+            "卡沃利", "高緹耶", "高缇耶", "古馳", "古驰", "湯姆福特", "汤姆福特",
+        ],
+        "search_queries": [
+            "chanel vintage sunglasses",
+            "chanel sunglasses y2k",
+            "chanel rare sunglasses",
+            "dior galliano sunglasses",
+            "dior vintage sunglasses",
+            "dior sunglasses y2k",
+            "gucci tom ford sunglasses",
+            "tom ford gucci vintage sunglasses",
+            "john galliano sunglasses",
+            "jean paul gaultier sunglasses",
+            "roberto cavalli sunglasses",
+        ],
+        "jp_queries": [
+            "シャネル サングラス",
+            "シャネル サングラス ヴィンテージ",
+            "ディオール サングラス",
+            "ガリアーノ サングラス",
+            "グッチ トムフォード サングラス",
+            "カヴァリ サングラス",
+            "ゴルチエ サングラス",
+        ],
+        "tw_queries": [
+            "香奈兒 太陽眼鏡",
+            "迪奧 太陽眼鏡",
+            "古馳 太陽眼鏡",
+            "Gaultier 墨鏡",
+            "Cavalli 太陽眼鏡",
+        ],
+        "cn_queries": [
+            "香奈尔 太阳镜",
+            "迪奥 太阳镜",
+            "古驰 太阳镜",
+        ],
+        "max_price": 600,
+        "min_price": 30,
+        "jp_min_price": 15,
+        "jp_max_price": 250,
+        "conditions": CONDITIONS,
+        "include": SUNNIES_INCLUDE,
+        "style": ARCHIVE_SLAY_INCLUDE + ["サングラス", "アーカイブ", "ヴィンテージ"],
+        "exclude": STYLE_EXCLUDE + [
+            "wallet", "sneaker", "case only", "lens only", "cleaning cloth",
+            "chain only", "strap only", "contact lens",
+        ],
+        "era": [
+            "archive", "vintage", "rare", "y2k", "2000s", "90s", "runway",
+            "1995", "1996", "1997", "1998", "1999", "2000", "2001", "2002",
+            "2003", "2004", "2005", "ヴィンテージ", "アーカイブ", "レア",
         ],
     },
 ]
@@ -800,6 +821,10 @@ _SHOE_RE = re.compile(
     r"stiletto|sneaker|sneakers|loafer|loafers|espadrille|wedge|wedges|ballerin|slingback)",
     re.I,
 )
+_SUNNY_RE = re.compile(
+    r"(sunglass|sunnies|\bshades\b|eyewear|サングラス|太陽眼鏡|太阳镜|墨鏡|墨镜)",
+    re.I,
+)
 _BAG_RE = re.compile(
     r"(handbag|clutch|purse|tote|cambon|columbus|trotter|crossbody|baguette|"
     r"boston|shoulder bag|saddle bag|\bsaddle\b|flap bag|\bbag\b)",
@@ -817,11 +842,15 @@ def categorize_item(item: dict) -> str:
         flags=re.I,
     )
     brand = re.sub(r"\s+", " ", brand).strip()
+    if _SUNNY_RE.search(title):
+        return "sunnies"
     if _SHOE_RE.search(title):
         return "shoes"
     if _BAG_RE.search(title):
         return "bags"
     hay = f"{brand} {title}"
+    if _SUNNY_RE.search(hay):
+        return "sunnies"
     if _SHOE_RE.search(hay):
         return "shoes"
     if _BAG_RE.search(hay):
@@ -830,7 +859,7 @@ def categorize_item(item: dict) -> str:
 
 
 def publish_to_website(item: dict | None = None) -> str:
-    """Sync catalog; prep cutout when the approved piece is clothing or shoes."""
+    """Sync catalog; prep cutout when the approved piece is a bag, heel or sunnies."""
     web = Path("web")
     node = "node"
     sync = web / "scripts" / "publish-catalog.mjs"
@@ -839,7 +868,7 @@ def publish_to_website(item: dict | None = None) -> str:
 
     cat = categorize_item(item) if item else ""
     args = [node, str(sync)]
-    if item and cat in ("ready-to-wear", "shoes", "bags"):
+    if item and cat in ("shoes", "bags", "sunnies"):
         args.append("--cutouts")
         args.append(f"--ids={listing_uid(item)}")
     else:
@@ -925,7 +954,7 @@ def extract_taste_tokens(text: str) -> list[str]:
     hay = expand_cjk_hay(text.lower())
     found = []
     vocab = list(dict.fromkeys(
-        TREND_SIGNALS + ARCHIVE_SLAY_INCLUDE + CLOTHES_INCLUDE + BAGS_SHOES_INCLUDE
+        TREND_SIGNALS + ARCHIVE_SLAY_INCLUDE + SUNNIES_INCLUDE + BAGS_SHOES_INCLUDE
         + list(CJK_ALIASES.keys())
     ))
     for term in vocab:
@@ -1025,6 +1054,7 @@ def rebuild_taste_profile() -> dict:
         "saddle": 3, "trotter": 3, "dior": 2, "heels": 2, "bag": 2,
         "galliano": 3, "cavalli": 3, "leopard": 3, "animal print": 3,
         "gaultier": 3, "tom ford": 3, "gucci": 2, "jackie": 2, "y2k": 2,
+        "sunglasses": 2, "sunnies": 2,
     }
     for token, boost in inspiration_boosts.items():
         weights[token] = weights.get(token, 0) + boost
@@ -1048,7 +1078,8 @@ def rebuild_taste_profile() -> dict:
             "Jean Vintage",
             "Break Archive",
             "Chanel rare bags",
-            "Dior rare bags / shoes / clothes",
+            "Dior rare bags / heels",
+            "Archive sunnies",
             "Cavalli • Galliano • Tom Ford Gucci • Gaultier",
         ],
         "ready": len(approved) >= TASTE_MIN_SAMPLES,
@@ -1109,6 +1140,10 @@ def matches_rule(title: str, price: float, condition: str, rule: dict, extra: st
     if exclude and any(term in cleaned for term in exclude):
         return False
 
+    # Accessories only — never let clothing through, whatever the lane
+    if is_clothing_title(expand_cjk_hay(title.lower())):
+        return False
+
     include = [x.lower() for x in rule.get("include", [])]
     if include and not any(term in cleaned for term in include):
         return False
@@ -1118,10 +1153,8 @@ def matches_rule(title: str, price: float, condition: str, rule: dict, extra: st
     has_style = any(term in cleaned for term in style_terms)
     has_era = any(term in cleaned for term in era_terms)
     hot_shape = any(term in cleaned for term in [
-        "mini", "bodycon", "halter", "corset", "bustier", "cutout",
-        "slip dress", "lace", "mesh", "sheer", "ruched",
         "bag", "clutch", "heel", "pump", "sandal", "mule", "boot",
-        "top", "blouse", "camisole", "knit", "deconstructed",
+        "sunglass", "sunnies", "shades", "eyewear",
         *CJK_SHAPE_INCLUDE,
     ])
 
@@ -1130,7 +1163,7 @@ def matches_rule(title: str, price: float, condition: str, rule: dict, extra: st
     if not ((has_style or has_era) and (hot_shape or women_signal or jp_shape)):
         return False
 
-    # Category focus: bags / shoes / clothes stay in their lane
+    # Category focus: bags / shoes / sunnies stay in their lane
     focus = rule.get("focus")
     if focus in {"bags", "bags_shoes"}:
         bag_shoe = any(term in cleaned for term in [
@@ -1156,21 +1189,18 @@ def matches_rule(title: str, price: float, condition: str, rule: dict, extra: st
         ])
         if not shoe_hit:
             return False
-    elif focus == "clothes":
-        clothes_hit = any(term in cleaned for term in CLOTHES_INCLUDE + CJK_SHAPE_INCLUDE)
-        # Tom Ford Gucci may also surface Jackie / bamboo bags
-        if rule.get("brand") == "Tom Ford Gucci":
-            ford_era = any(term in cleaned for term in [
-                "tom ford", "by tom ford", "jackie", "bamboo", "horsebit",
-                "1995", "1996", "1997", "1998", "1999", "2000", "2001",
-                "2002", "2003", "2004", "トムフォード",
-            ])
-            bag_hit = any(term in cleaned for term in BAGS_INCLUDE)
-            if not ford_era:
-                return False
-            if not (clothes_hit or bag_hit):
-                return False
-        elif not clothes_hit:
+    elif focus == "sunnies":
+        if not any(term in cleaned for term in SUNNIES_INCLUDE):
+            return False
+
+    # Tom Ford era Gucci only — keeps modern Gucci out of the lane
+    if rule.get("brand") == "Tom Ford Gucci":
+        ford_era = any(term in cleaned for term in [
+            "tom ford", "by tom ford", "jackie", "bamboo", "horsebit",
+            "1995", "1996", "1997", "1998", "1999", "2000", "2001",
+            "2002", "2003", "2004", "トムフォード",
+        ])
+        if not ford_era:
             return False
 
     # Once enough Approves exist, require some overlap with learned taste
@@ -1189,7 +1219,7 @@ def matches_rule(title: str, price: float, condition: str, rule: dict, extra: st
                 "galliano", "columbus", "bondage", "cavalli", "leopard",
                 "python", "animal", "saddle", "trotter", "chanel", "2.55",
                 "gaultier", "tom ford", "jackie", "bamboo", "horsebit",
-                "harness", "rare", "archive",
+                "harness", "rare", "archive", "sunglasses",
                 "ガリアーノ", "ディオール", "シャネル", "カヴァリ", "ゴルチエ",
                 "加利亞諾", "加利亚诺", "迪奧", "迪奥", "香奈兒", "香奈尔",
                 "卡沃利", "高緹耶", "高缇耶",
@@ -2082,7 +2112,7 @@ def build_comp_query(item: dict) -> str:
     """Build a short marketplace query from an approved listing."""
     brand = re.sub(r"[^a-zA-Z0-9\s]", " ", (item.get("brand") or "")).lower()
     brand = re.sub(
-        r"\b(rare bags|bags|shoes|clothes|tom ford gucci|bags & shoes)\b",
+        r"\b(rare bags|bags|shoes|sunnies|tom ford gucci|bags & shoes)\b",
         " ",
         brand,
     )
@@ -3004,7 +3034,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 *feling. Sourcing Agent* is live.\n\n"
         "I'm monitoring Grailed, Vestiaire, and Yahoo Auctions Japan (via Buyee checkout).\n"
-        "Taste lane: Chanel/Dior rare bags, Dior shoes & clothes, Cavalli, Galliano, Tom Ford Gucci, Gaultier.\n"
+        "Taste lane (accessories only): Chanel/Dior rare bags, Dior heels, archive sunnies, Cavalli, Galliano, Tom Ford Gucci, Gaultier.\n"
         "Inspiration: Isle of Monday / Jean Vintage / Break Archive.\n"
         "Japan lane is cheaper by default.\n\n"
         "When I find something that matches your criteria I'll send it here with photo, price, "
@@ -3193,7 +3223,7 @@ async def cmd_taste(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"Status: {ready}\n"
             f"Approves: {profile.get('approved_count', 0)} • Skips: {profile.get('skipped_count', 0)}\n"
             f"Avg approved price: {avg_line}\n\n"
-            f"North star: Chanel/Dior rare bags • Dior shoes/clothes • Cavalli • Galliano • Tom Ford Gucci • Gaultier\n"
+            f"North star: Chanel/Dior rare bags • Dior heels • archive sunnies • Cavalli • Galliano • Tom Ford Gucci • Gaultier\n"
             f"Inspiration: {', '.join(profile.get('inspiration', [])[:3]) or 'Isle of Monday / Jean Vintage / Break Archive'}\n\n"
             f"Boosting: {pos}\n"
             f"Downranking: {neg}\n\n"
